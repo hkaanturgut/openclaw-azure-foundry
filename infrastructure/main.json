@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "16866663627238197800"
+      "templateHash": "1339539134476394335"
     }
   },
   "parameters": {
@@ -160,7 +160,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "5861239694347516915"
+              "templateHash": "3359877247977128343"
             }
           },
           "parameters": {
@@ -252,6 +252,12 @@
             {
               "type": "Microsoft.Network/privateDnsZones",
               "apiVersion": "2020-06-01",
+              "name": "privatelink.services.ai.azure.com",
+              "location": "global"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
               "name": "privatelink.vaultcore.azure.net",
               "location": "global"
             },
@@ -268,6 +274,22 @@
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.openai.azure.com')]",
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.services.ai.azure.com', format('link-aiservices-{0}', parameters('vnetName')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.services.ai.azure.com')]",
                 "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
               ]
             },
@@ -304,6 +326,10 @@
             "openaiPrivateDnsZoneId": {
               "type": "string",
               "value": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.openai.azure.com')]"
+            },
+            "aiServicesDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.services.ai.azure.com')]"
             },
             "kvPrivateDnsZoneId": {
               "type": "string",
@@ -582,7 +608,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "1972767766025527597"
+              "templateHash": "16415751536017007294"
             }
           },
           "parameters": {
@@ -618,7 +644,7 @@
             }
           },
           "variables": {
-            "cloudInitRaw": "#cloud-config\npackage_update: true\npackage_upgrade: true\n\npackages:\n  - curl\n  - jq\n  - unzip\n\nruncmd:\n  # Install Node.js LTS\n  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -\n  - apt-get install -y nodejs\n\n  # Install Azure CLI\n  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash\n\n  # Login with managed identity\n  - az login --identity --allow-no-subscriptions\n\n  # Pull secrets from Key Vault (retry loop for role assignment propagation)\n  - |\n    for i in $(seq 1 30); do\n      FOUNDRY_API_KEY=$(az keyvault secret show --vault-name \"${KEY_VAULT_NAME}\" --name foundry-api-key --query value -o tsv 2>/dev/null) && break\n      echo \"Waiting for Key Vault access (attempt $i/30)...\"\n      sleep 10\n    done\n  - TELEGRAM_BOT_TOKEN=$(az keyvault secret show --vault-name \"${KEY_VAULT_NAME}\" --name telegram-bot-token --query value -o tsv)\n  - FOUNDRY_ENDPOINT=\"https://${AI_FOUNDRY_ACCOUNT_NAME}.services.ai.azure.com/\"\n\n  # Install OpenClaw as the admin user (non-interactive)\n  - OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash'\n\n  # Create config directory\n  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent\n  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/workspace\n\n  # Write openclaw.json\n  - |\n    cat > /home/${ADMIN_USERNAME}/.openclaw/openclaw.json << OCEOF\n    {\n      \"models\": {\n        \"mode\": \"merge\",\n        \"providers\": {\n          \"azure-openai-responses\": {\n            \"baseUrl\": \"$FOUNDRY_ENDPOINT\",\n            \"apiKey\": \"$FOUNDRY_API_KEY\",\n            \"api\": \"openai-responses\",\n            \"authHeader\": false,\n            \"headers\": {\n              \"api-key\": \"$FOUNDRY_API_KEY\"\n            },\n            \"models\": [\n              {\n                \"id\": \"gpt-4o\",\n                \"name\": \"GPT-5.4-mini (Azure Foundry)\",\n                \"reasoning\": false,\n                \"input\": [\"text\"],\n                \"cost\": { \"input\": 0, \"output\": 0, \"cacheRead\": 0, \"cacheWrite\": 0 },\n                \"contextWindow\": 128000,\n                \"maxTokens\": 16384,\n                \"compat\": { \"supportsStore\": false }\n              }\n            ]\n          }\n        }\n      },\n      \"agents\": {\n        \"defaults\": {\n          \"model\": { \"primary\": \"azure-openai-responses/gpt-4o\" },\n          \"models\": { \"azure-openai-responses/gpt-4o\": {} },\n          \"workspace\": \"/home/${ADMIN_USERNAME}/.openclaw/workspace\"\n        },\n        \"list\": [\n          {\n            \"id\": \"main\",\n            \"name\": \"main\",\n            \"workspace\": \"/home/${ADMIN_USERNAME}/.openclaw/workspace\",\n            \"agentDir\": \"/home/${ADMIN_USERNAME}/.openclaw/agents/main/agent\",\n            \"model\": \"azure-openai-responses/gpt-4o\"\n          }\n        ]\n      },\n      \"channels\": {\n        \"telegram\": {\n          \"enabled\": true,\n          \"dmPolicy\": \"pairing\",\n          \"botToken\": \"$TELEGRAM_BOT_TOKEN\",\n          \"groupPolicy\": \"allowlist\",\n          \"streaming\": \"partial\"\n        }\n      },\n      \"gateway\": { \"port\": 18789, \"mode\": \"local\", \"bind\": \"loopback\" },\n      \"browser\": { \"enabled\": false },\n      \"tools\": { \"profile\": \"coding\", \"web\": { \"search\": { \"enabled\": false } } },\n      \"commands\": { \"native\": \"auto\", \"restart\": true },\n      \"session\": { \"dmScope\": \"per-channel-peer\" }\n    }\n    OCEOF\n\n  # Write auth-profiles.json\n  - |\n    cat > /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent/auth-profiles.json << APEOF\n    {\n      \"version\": 1,\n      \"profiles\": {\n        \"azure-openai-responses:default\": {\n          \"type\": \"api_key\",\n          \"provider\": \"azure-openai-responses\",\n          \"key\": \"$FOUNDRY_API_KEY\"\n        }\n      },\n      \"lastGood\": {\n        \"azure-openai-responses\": \"azure-openai-responses:default\"\n      }\n    }\n    APEOF\n\n  # Fix ownership\n  - chown -R ${ADMIN_USERNAME}:${ADMIN_USERNAME} /home/${ADMIN_USERNAME}/.openclaw\n\n  # Create systemd service\n  - |\n    cat > /etc/systemd/system/openclaw.service << 'SVCEOF'\n    [Unit]\n    Description=OpenClaw AI Assistant Gateway\n    After=network-online.target\n    Wants=network-online.target\n\n    [Service]\n    Type=simple\n    User=${ADMIN_USERNAME}\n    WorkingDirectory=/home/${ADMIN_USERNAME}\n    ExecStart=/home/${ADMIN_USERNAME}/.local/bin/openclaw gateway start --foreground\n    Restart=always\n    RestartSec=10\n    Environment=HOME=/home/${ADMIN_USERNAME}\n\n    [Install]\n    WantedBy=multi-user.target\n    SVCEOF\n\n  # Enable and start OpenClaw\n  - systemctl daemon-reload\n  - systemctl enable openclaw\n  - systemctl start openclaw\n",
+            "cloudInitRaw": "#cloud-config\npackage_update: true\npackage_upgrade: true\n\npackages:\n  - curl\n  - jq\n  - unzip\n\nruncmd:\n  # Install Node.js LTS\n  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -\n  - apt-get install -y nodejs\n\n  # Install Azure CLI\n  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash\n\n  # Login with managed identity\n  - az login --identity --allow-no-subscriptions\n\n  # Pull secrets from Key Vault (retry loop for role assignment propagation)\n  - |\n    for i in $(seq 1 30); do\n      FOUNDRY_API_KEY=$(az keyvault secret show --vault-name \"${KEY_VAULT_NAME}\" --name foundry-api-key --query value -o tsv 2>/dev/null) && break\n      echo \"Waiting for Key Vault access (attempt $i/30)...\"\n      sleep 10\n    done\n  - TELEGRAM_BOT_TOKEN=$(az keyvault secret show --vault-name \"${KEY_VAULT_NAME}\" --name telegram-bot-token --query value -o tsv)\n  - FOUNDRY_ENDPOINT=\"https://${AI_FOUNDRY_ACCOUNT_NAME}.services.ai.azure.com/\"\n\n  # Install OpenClaw as the admin user (non-interactive)\n  - OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash'\n\n  # Create config directory\n  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent\n  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/workspace\n\n  # Write openclaw.json\n  - |\n    cat > /home/${ADMIN_USERNAME}/.openclaw/openclaw.json << OCEOF\n    {\n      \"models\": {\n        \"mode\": \"merge\",\n        \"providers\": {\n          \"azure-openai-responses\": {\n            \"baseUrl\": \"$FOUNDRY_ENDPOINT\",\n            \"apiKey\": \"$FOUNDRY_API_KEY\",\n            \"api\": \"openai-responses\",\n            \"authHeader\": false,\n            \"headers\": {\n              \"api-key\": \"$FOUNDRY_API_KEY\"\n            },\n            \"models\": [\n              {\n                \"id\": \"gpt-4o\",\n                \"name\": \"GPT-5.4-mini (Azure Foundry)\",\n                \"reasoning\": false,\n                \"input\": [\"text\"],\n                \"cost\": { \"input\": 0, \"output\": 0, \"cacheRead\": 0, \"cacheWrite\": 0 },\n                \"contextWindow\": 128000,\n                \"maxTokens\": 16384,\n                \"compat\": { \"supportsStore\": false }\n              }\n            ]\n          }\n        }\n      },\n      \"agents\": {\n        \"defaults\": {\n          \"model\": { \"primary\": \"azure-openai-responses/gpt-4o\" },\n          \"models\": { \"azure-openai-responses/gpt-4o\": {} },\n          \"workspace\": \"/home/${ADMIN_USERNAME}/.openclaw/workspace\"\n        },\n        \"list\": [\n          {\n            \"id\": \"main\",\n            \"name\": \"main\",\n            \"workspace\": \"/home/${ADMIN_USERNAME}/.openclaw/workspace\",\n            \"agentDir\": \"/home/${ADMIN_USERNAME}/.openclaw/agents/main/agent\",\n            \"model\": \"azure-openai-responses/gpt-4o\"\n          }\n        ]\n      },\n      \"channels\": {\n        \"telegram\": {\n          \"enabled\": true,\n          \"dmPolicy\": \"pairing\",\n          \"botToken\": \"$TELEGRAM_BOT_TOKEN\",\n          \"groupPolicy\": \"allowlist\",\n          \"streaming\": \"partial\"\n        }\n      },\n      \"gateway\": { \"port\": 18789, \"mode\": \"local\", \"bind\": \"loopback\" },\n      \"browser\": { \"enabled\": false },\n      \"tools\": { \"profile\": \"coding\", \"web\": { \"search\": { \"enabled\": false } } },\n      \"commands\": { \"native\": \"auto\", \"restart\": true },\n      \"session\": { \"dmScope\": \"per-channel-peer\" }\n    }\n    OCEOF\n\n  # Write auth-profiles.json\n  - |\n    cat > /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent/auth-profiles.json << APEOF\n    {\n      \"version\": 1,\n      \"profiles\": {\n        \"azure-openai-responses:default\": {\n          \"type\": \"api_key\",\n          \"provider\": \"azure-openai-responses\",\n          \"key\": \"$FOUNDRY_API_KEY\"\n        }\n      },\n      \"lastGood\": {\n        \"azure-openai-responses\": \"azure-openai-responses:default\"\n      }\n    }\n    APEOF\n\n  # Fix ownership\n  - chown -R ${ADMIN_USERNAME}:${ADMIN_USERNAME} /home/${ADMIN_USERNAME}/.openclaw\n\n  # Determine openclaw binary path (installer puts it in .npm-global/bin)\n  - OPENCLAW_BIN=$(sudo -u ${ADMIN_USERNAME} -i bash -c 'command -v openclaw 2>/dev/null || echo /home/${ADMIN_USERNAME}/.npm-global/bin/openclaw')\n\n  # Create systemd service\n  - |\n    OPENCLAW_BIN_PATH=$(sudo -u ${ADMIN_USERNAME} bash -c 'echo $HOME/.npm-global/bin/openclaw')\n    cat > /etc/systemd/system/openclaw.service << SVCEOF\n    [Unit]\n    Description=OpenClaw AI Assistant Gateway\n    After=network-online.target\n    Wants=network-online.target\n\n    [Service]\n    Type=simple\n    User=${ADMIN_USERNAME}\n    Group=${ADMIN_USERNAME}\n    WorkingDirectory=/home/${ADMIN_USERNAME}\n    Environment=HOME=/home/${ADMIN_USERNAME}\n    Environment=PATH=/home/${ADMIN_USERNAME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin\n    Environment=NODE_ENV=production\n    ExecStart=${OPENCLAW_BIN_PATH} gateway --allow-unconfigured\n    Restart=on-failure\n    RestartSec=10\n    StandardOutput=journal\n    StandardError=journal\n\n    [Install]\n    WantedBy=multi-user.target\n    SVCEOF\n\n  # Enable and start OpenClaw\n  - systemctl daemon-reload\n  - systemctl enable openclaw\n  - systemctl start openclaw\n",
             "cloudInitConfigured": "[replace(replace(replace(variables('cloudInitRaw'), '${KEY_VAULT_NAME}', parameters('keyVaultName')), '${AI_FOUNDRY_ACCOUNT_NAME}', parameters('aiFoundryAccountName')), '${ADMIN_USERNAME}', parameters('adminUsername'))]"
           },
           "resources": [
@@ -879,6 +905,9 @@
           "openaiPrivateDnsZoneId": {
             "value": "[reference('networking').outputs.openaiPrivateDnsZoneId.value]"
           },
+          "aiServicesDnsZoneId": {
+            "value": "[reference('networking').outputs.aiServicesDnsZoneId.value]"
+          },
           "kvPrivateDnsZoneId": {
             "value": "[reference('networking').outputs.kvPrivateDnsZoneId.value]"
           }
@@ -890,7 +919,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "2559152404581909792"
+              "templateHash": "1802500820145277153"
             }
           },
           "parameters": {
@@ -910,6 +939,9 @@
               "type": "string"
             },
             "openaiPrivateDnsZoneId": {
+              "type": "string"
+            },
+            "aiServicesDnsZoneId": {
               "type": "string"
             },
             "kvPrivateDnsZoneId": {
@@ -949,6 +981,12 @@
                     "name": "privatelink-openai-azure-com",
                     "properties": {
                       "privateDnsZoneId": "[parameters('openaiPrivateDnsZoneId')]"
+                    }
+                  },
+                  {
+                    "name": "privatelink-services-ai-azure-com",
+                    "properties": {
+                      "privateDnsZoneId": "[parameters('aiServicesDnsZoneId')]"
                     }
                   }
                 ]

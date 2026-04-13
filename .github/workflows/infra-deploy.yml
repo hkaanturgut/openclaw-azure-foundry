@@ -78,10 +78,17 @@ jobs:
 
       - name: Verify OpenClaw Status
         run: |
+          RG=$(az deployment sub list --query "[?properties.provisioningState=='Succeeded' && properties.outputs.resourceGroupName.value!=null] | [0].properties.outputs.resourceGroupName.value" -o tsv)
+          VM=$(az deployment sub list --query "[?properties.provisioningState=='Succeeded' && properties.outputs.vmName.value!=null] | [0].properties.outputs.vmName.value" -o tsv)
+          if [ -z "$RG" ] || [ -z "$VM" ]; then
+            echo "Failed to resolve RG/VM from latest successful deployment outputs"
+            exit 1
+          fi
+
           # Wait for cloud-init to complete (can take 5-10 min)
           sleep 300
           az vm run-command invoke \
-            --resource-group rg-openclaw \
-            --name vm-openclaw \
+            --resource-group "$RG" \
+            --name "$VM" \
             --command-id RunShellScript \
             --scripts "cloud-init status --wait && systemctl status openclaw && sudo -u openclaw openclaw status"

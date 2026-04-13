@@ -27,15 +27,52 @@ jobs:
 
       - name: Push Config and Restart
         run: |
+          RG=$(az deployment sub list --query "[?properties.provisioningState=='Succeeded' && properties.outputs.resourceGroupName.value!=null] | [0].properties.outputs.resourceGroupName.value" -o tsv)
+          VM=$(az deployment sub list --query "[?properties.provisioningState=='Succeeded' && properties.outputs.vmName.value!=null] | [0].properties.outputs.vmName.value" -o tsv)
+          KV=$(az deployment sub list --query "[?properties.provisioningState=='Succeeded' && properties.outputs.keyVaultName.value!=null] | [0].properties.outputs.keyVaultName.value" -o tsv)
+
+          if [ -z "$RG" ] || [ -z "$VM" ] || [ -z "$KV" ]; then
+            echo "Failed to resolve RG/VM/KeyVault from latest successful deployment outputs"
+            exit 1
+          fi
+
+          AI_SERVICES_NAME=$(az resource list -g "$RG" --resource-type Microsoft.CognitiveServices/accounts --query "[?kind=='AIServices'].name | [0]" -o tsv)
+          if [ -z "$AI_SERVICES_NAME" ]; then
+            echo "Failed to resolve AI Services account name in resource group $RG"
+            exit 1
+          fi
+
+          export FOUNDRY_ACCOUNT_NAME="$AI_SERVICES_NAME"
+
+          OPENCLAW_CONFIG=$(cat openclaw-config/openclaw.template.json)
+          OPENCLAW_CONFIG=${OPENCLAW_CONFIG//FOUNDRY_ACCOUNT_NAME/$FOUNDRY_ACCOUNT_NAME}
+          OPENCLAW_CONFIG=${OPENCLAW_CONFIG//ADMIN_USERNAME/openclaw}
+
+          AUTH_PROFILES=$(cat openclaw-config/auth-profiles.template.json)
+
+          OPENCLAW_CONFIG_B64=$(printf '%s' "$OPENCLAW_CONFIG" | base64 -w0)
+          AUTH_PROFILES_B64=$(printf '%s' "$AUTH_PROFILES" | base64 -w0)
+
           az vm run-command invoke \
-            --resource-group rg-openclaw \
-            --name vm-openclaw \
+            --resource-group "$RG" \
+            --name "$VM" \
             --command-id RunShellScript \
             --scripts "
               az login --identity --allow-no-subscriptions
-              FOUNDRY_API_KEY=\$(az keyvault secret show --vault-name kv-oc-eus2 --name foundry-api-key --query value -o tsv)
-              TELEGRAM_BOT_TOKEN=\$(az keyvault secret show --vault-name kv-oc-eus2 --name telegram-bot-token --query value -o tsv)
-              FOUNDRY_ENDPOINT=\"https://oc-foundry-eus2.openai.azure.com/openai/v1\"
+              FOUNDRY_API_KEY=\$(az keyvault secret show --vault-name $KV --name foundry-api-key --query value -o tsv)
+              TELEGRAM_BOT_TOKEN=\$(az keyvault secret show --vault-name $KV --name telegram-bot-token --query value -o tsv)
+              mkdir -p /home/openclaw/.openclaw/agents/main/agent
+              echo '$OPENCLAW_CONFIG_B64' | base64 -d > /home/openclaw/.openclaw/openclaw.json
+              echo '$AUTH_PROFILES_B64' | base64 -d > /home/openclaw/.openclaw/agents/main/agent/auth-profiles.json
+              jq --arg key \"\${FOUNDRY_API_KEY}\" --arg bot \"\${TELEGRAM_BOT_TOKEN}\" '
+                .models.providers["azure-openai-responses"].apiKey = $key |
+                .models.providers["azure-openai-responses"].headers["api-key"] = $key |
+                .channels.telegram.botToken = $bot
+              ' /home/openclaw/.openclaw/openclaw.json > /tmp/openclaw.json && mv /tmp/openclaw.json /home/openclaw/.openclaw/openclaw.json
+              jq --arg key \"\${FOUNDRY_API_KEY}\" '
+                .profiles["azure-openai-responses:default"].key = $key
+              ' /home/openclaw/.openclaw/agents/main/agent/auth-profiles.json > /tmp/auth-profiles.json && mv /tmp/auth-profiles.json /home/openclaw/.openclaw/agents/main/agent/auth-profiles.json
+              chown -R openclaw:openclaw /home/openclaw/.openclaw
               sudo -u openclaw openclaw gateway restart
               sudo -u openclaw openclaw status
             "
