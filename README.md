@@ -1,156 +1,279 @@
 # openclaw-azure-foundry
 
-Deploy a fully private OpenClaw AI assistant on Azure with AI Foundry, connected to Telegram — with a single `git push`.
+Deploy a private OpenClaw assistant on Azure AI services, connect it to Telegram, and operate everything through GitHub Actions CI/CD.
+
+This repository is designed for people who want:
+
+1. No public VM endpoint.
+2. No long-lived Azure credentials in GitHub.
+3. Private Azure AI + Key Vault access from the VM.
+4. Repeatable deployments via pull requests and protected main branch.
+
+## What This Project Deploys
+
+At a high level, one deployment creates:
+
+1. A resource group.
+2. A virtual network with a private VM subnet and private endpoint subnet.
+3. An Azure AI Services account with model deployment.
+4. Azure AI Foundry Hub and Project resources.
+5. A private Key Vault with secrets.
+6. A Linux VM with OpenClaw installed and managed by systemd.
+7. Private endpoints and private DNS zone links for AI and Key Vault.
 
 ## Architecture
 
+```mermaid
+flowchart TD
+        GH[GitHub Actions\nOIDC login] --> AZ[Azure Subscription]
+        AZ --> RG[Resource Group]
+
+        RG --> VNET[VNet 10.40.0.0/16]
+        VNET --> SVM[snet-vm 10.40.2.0/24\nNSG blocks internet inbound]
+        VNET --> SPE[snet-pe 10.40.3.0/24\nPrivate Endpoints]
+
+        SVM --> VM[vm-openclaw\nOpenClaw + systemd\nManaged Identity]
+        VM --> TG[Telegram API]
+
+        RG --> AIS[Azure AI Services\nmodel deployment]
+        RG --> HUB[Azure AI Foundry Hub]
+        RG --> PROJ[Azure AI Foundry Project]
+        RG --> KV[Key Vault RBAC]
+
+        SPE --> PEAI[PE: AI Services]
+        SPE --> PEHUB[PE: Hub]
+        SPE --> PEKV[PE: Key Vault]
+
+        VM -->|private DNS| AIS
+        VM -->|private DNS| KV
 ```
-GitHub Actions (OIDC)
-        │
-        ▼
-Azure Subscription
-        │
-        └── Resource Group (rg-openclaw)
-                │
-                ├── VNet (10.40.0.0/16)
-                │     ├── snet-vm (10.40.2.0/24)  ← NSG: no inbound from Internet
-                │     │     └── VM (vm-openclaw)
-                │     │           └── OpenClaw + systemd ──────────────► Telegram API
-                │     │                 (managed identity)
-                │     └── snet-pe (10.40.3.0/24)
-                │           ├── pe-foundry-openclaw
-                │           └── pe-kv-openclaw
-                │
-                ├── Azure AI Foundry (private, no public access)
-                │     └── gpt-5.4-mini deployment
-                │
-                ├── Key Vault (private, RBAC)
-                │     ├── secret: foundry-api-key
-                │     └── secret: telegram-bot-token
-                │
-                └── Private DNS Zones
-                      ├── privatelink.openai.azure.com → pe-foundry-openclaw
-                      └── privatelink.vaultcore.azure.net → pe-kv-openclaw
-```
+
+## Repository Layout
+
+- [infrastructure/main.bicep](infrastructure/main.bicep): Root subscription-scope deployment.
+- [infrastructure/modules](infrastructure/modules): Networking, compute, AI services/foundry, key vault, private endpoints.
+- [infrastructure/cloud-init/cloud-init.yaml](infrastructure/cloud-init/cloud-init.yaml): VM bootstrap and OpenClaw configuration.
+- [infrastructure/parameters](infrastructure/parameters): Environment parameter files.
+- [openclaw-config](openclaw-config): Runtime OpenClaw config templates pushed by workflow.
+- [.github/workflows](.github/workflows): Validate, infra deploy, and config update pipelines.
+- [scripts](scripts): Operational helpers for connect/validate/teardown.
+- [docs](docs): Setup, architecture, and troubleshooting details.
+
+## Before You Start
 
 ## Prerequisites
 
-- **Azure subscription** with Owner or (Contributor + User Access Administrator) role
-- **Azure CLI** (`az`) installed locally
-- **GitHub account** with Actions enabled
-- **Telegram account** to interact with the bot
-- **SSH key pair** (Ed25519 recommended): `ssh-keygen -t ed25519 -C "openclaw"`
+1. Azure subscription where you can deploy at subscription scope.
+2. GitHub repository with Actions enabled.
+3. Azure CLI installed and logged in.
+4. Telegram bot token from BotFather.
+5. SSH keypair for VM access.
 
-## Quick Start
+Suggested key generation:
 
-### 1. Fork & Clone
+```bash
+ssh-keygen -t ed25519 -C "openclaw"
+```
+
+## Required Azure Permissions
+
+For the identity used by GitHub Actions, assign at least:
+
+1. Contributor on subscription (resource deployments).
+2. User Access Administrator on subscription (RBAC assignment for VM managed identity to Key Vault).
+
+## End-to-End Setup (Correct Order)
+
+Follow these steps in order. This is the fastest path for a first successful CI/CD deployment.
+
+### Step 1: Fork or Clone
 
 ```bash
 git clone https://github.com/YOUR_ORG/openclaw-azure-foundry.git
 cd openclaw-azure-foundry
 ```
 
-### 2. Set Up OIDC Federation & GitHub Secrets/Variables
+### Step 2: Configure OIDC from GitHub to Azure
 
-Create an App Registration in Azure Entra ID and configure federated credentials for your GitHub repo (see [docs/SETUP.md](docs/SETUP.md) for full instructions).
+Use the sequence in [docs/SETUP.md](docs/SETUP.md) to:
 
-Set the following in your GitHub repository (**Settings → Secrets and variables → Actions**):
+1. Create Entra App Registration for CI/CD.
+2. Create service principal.
+3. Add federated credentials for main and pull request runs.
+4. Assign Azure roles.
 
-**Secrets:**
+OIDC removes the need for stored service-principal secrets.
 
-| Name | Description |
-|------|-------------|
-| `SSH_PUBLIC_KEY` | Contents of your `~/.ssh/id_ed25519.pub` |
-| `TELEGRAM_BOT_TOKEN` | Token from BotFather (e.g. `123456:ABC-DEF...`) |
+### Step 3: Configure GitHub Secrets and Variables
 
-**Variables:**
+Set these in GitHub repository settings.
 
-| Name | Description |
-|------|-------------|
-| `AZURE_CLIENT_ID` | App Registration client ID |
-| `AZURE_TENANT_ID` | Azure AD tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Target Azure subscription ID |
+Secrets:
 
-### 3. Push to Main
+| Name | Value |
+|------|-------|
+| SSH_PUBLIC_KEY | Contents of your public key file |
+| TELEGRAM_BOT_TOKEN | BotFather token |
+
+Variables:
+
+| Name | Value |
+|------|-------|
+| AZURE_CLIENT_ID | App registration client ID |
+| AZURE_TENANT_ID | Entra tenant ID |
+| AZURE_SUBSCRIPTION_ID | Target subscription ID |
+
+### Step 4: Create GitHub Environment Gate
+
+Create environment prod in GitHub and add required reviewers.
+
+This enables the deployment approval gate used by infra pipeline.
+
+### Step 5: Review Parameter File
+
+Check [infrastructure/parameters/prod.bicepparam](infrastructure/parameters/prod.bicepparam):
+
+1. Naming values are globally unique where required.
+2. Region and VM size fit your needs.
+3. Model and capacity settings are appropriate.
+
+### Step 6: Push to Main
 
 ```bash
 git push origin main
 ```
 
-GitHub Actions will run a `what-if` preview, wait for your approval in the `prod` environment gate, then deploy the full stack.
+This triggers infra CI/CD.
 
-## Manual Deployment
+## CI/CD Flow
+
+### Validate Workflow
+
+File: [validate.yml](.github/workflows/validate.yml)
+
+Runs on pull requests and performs:
+
+1. Bicep compilation/lint check.
+2. ARM validation command.
+3. Shell script linting.
+
+### Infrastructure Deployment Workflow
+
+File: [infra-deploy.yml](.github/workflows/infra-deploy.yml)
+
+Runs on main for infrastructure changes and does:
+
+1. What-if preview.
+2. Deployment after prod approval.
+3. Post-deploy VM verification.
+
+### OpenClaw Config Workflow
+
+File: [openclaw-config.yml](.github/workflows/openclaw-config.yml)
+
+Runs on config changes and does:
+
+1. Resolve latest deployed RG/VM/Key Vault.
+2. Render config templates.
+3. Pull secrets from Key Vault on VM via managed identity.
+4. Apply config and restart OpenClaw.
+
+## First Deployment Verification
+
+After deployment succeeds, verify in this order.
+
+### 1) Check Workflow Status
+
+Confirm successful runs for:
+
+1. Deploy Infrastructure.
+2. Verify OpenClaw Status.
+
+### 2) Validate VM and Service
 
 ```bash
-az deployment sub create \
-  --location eastus2 \
-  --template-file infrastructure/main.bicep \
-  --parameters infrastructure/parameters/prod.bicepparam \
-  --parameters sshPublicKey="$(cat ~/.ssh/id_ed25519.pub)" \
-  --parameters telegramBotToken="YOUR_BOT_TOKEN"
+./scripts/validate-deployment.sh
 ```
 
-## Connecting to the VM
-
-The VM has no public IP. Connect via Azure AD SSH:
+### 3) Connect to VM
 
 ```bash
-# Install the SSH extension (one-time)
 az extension add -n ssh
-
-# Connect
 ./scripts/connect.sh
-# or directly:
-az ssh vm --resource-group rg-openclaw --name vm-openclaw
 ```
 
-> **Note:** Your Azure AD account must have the `Virtual Machine User Login` role on the VM or resource group.
+### 4) Check Service Health Logs
 
-## Cost Estimates
+```bash
+sudo systemctl status openclaw
+sudo journalctl -u openclaw -n 100 --no-pager
+```
 
-| Resource | SKU | Estimated Monthly Cost |
-|----------|-----|----------------------|
-| Virtual Machine | Standard_B2as_v2 (2 vCPU, 8 GB RAM) | ~$30 |
-| Azure AI Foundry | Pay-per-use (gpt-5.4-mini) | Varies by usage |
-| Key Vault | Standard | ~$5 |
-| Private Endpoint (Foundry) | — | ~$7 |
-| Private Endpoint (Key Vault) | — | ~$7 |
+### 5) Test Telegram
 
-*Estimates are approximate and may vary by region and usage.*
+1. Send start or hello to your bot.
+2. Confirm the bot responds.
+3. If no response, inspect [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+## Operational Model
+
+Use this workflow after first success:
+
+1. Infrastructure edits go through pull request, then merge to main.
+2. Runtime config edits go in [openclaw-config](openclaw-config), then merge to main.
+3. Never store API keys in repository files.
+4. Use Key Vault as source of truth for secrets.
+
+## Security Design Highlights
+
+1. VM has no public IP.
+2. NSG denies inbound from internet.
+3. Azure AI and Key Vault public access are disabled.
+4. VM uses managed identity to retrieve secrets.
+5. GitHub Actions authenticates with OIDC, not client secret.
+
+## Cost Guidance
+
+Your cost depends mostly on:
+
+1. VM SKU and uptime.
+2. Azure AI model usage and capacity.
+3. Private endpoint count.
+
+Use Azure Cost Management and set budgets/alerts early.
+
+## Common Pitfalls
+
+1. Missing GitHub environment approval blocks deployment.
+2. Wrong secret/variable names in repository settings.
+3. Non-unique Azure resource names in parameter file.
+4. Config drift when changing runtime manually on VM and not committing templates.
+5. DNS/endpoint mismatch leading to model-not-found or 404 errors.
+
+Use [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for incident-oriented diagnostics.
 
 ## Cleanup
 
 ```bash
-# Using the teardown script
 ./scripts/teardown.sh
+```
 
-# Or directly with Azure CLI
+or
+
+```bash
 az group delete --name rg-openclaw --yes --no-wait
 ```
 
-## GitHub Actions Secrets & Variables
+## Additional Documentation
 
-### Secrets (Settings → Secrets and variables → Actions → Secrets)
-
-| Name | Description |
-|------|-------------|
-| `SSH_PUBLIC_KEY` | SSH public key for VM access |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token from BotFather |
-
-### Variables (Settings → Secrets and variables → Actions → Variables)
-
-| Name | Description |
-|------|-------------|
-| `AZURE_CLIENT_ID` | App Registration (Service Principal) client ID |
-| `AZURE_TENANT_ID` | Azure Active Directory tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID to deploy into |
-
-> The `prod` GitHub environment should have a required reviewer configured for deployment gate protection.
+- [docs/SETUP.md](docs/SETUP.md): Detailed command-level setup.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Deep architectural rationale.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): Failure patterns and fixes.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue to discuss your idea before submitting a pull request. Ensure your changes pass the `validate` workflow (Bicep lint + `az deployment sub validate` + shellcheck).
+Contributions are welcome. Please open an issue first for significant changes and ensure workflows pass before submitting a pull request.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
