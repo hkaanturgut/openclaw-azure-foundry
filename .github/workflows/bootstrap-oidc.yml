@@ -35,6 +35,8 @@ jobs:
       contents: read
       actions: write
       id-token: write
+      variables: write
+      secrets: write
 
     steps:
       - name: Validate Bootstrap OIDC Variables
