@@ -44,7 +44,7 @@ jobs:
             --resource-group "${{ steps.resolve.outputs.rg }}" \
             --name "${{ steps.resolve.outputs.vm }}" \
             --command-id RunShellScript \
-            --scripts "sudo -u openclaw openclaw pairing approve telegram $CODE 2>&1" \
+            --scripts "sudo -u openclaw /home/openclaw/.npm-global/bin/openclaw pairing approve telegram $CODE 2>&1" \
             --query 'value[0].message' -o tsv)
           echo "$RESULT"
           echo "## Pairing Result" >> "$GITHUB_STEP_SUMMARY"
