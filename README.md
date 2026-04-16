@@ -245,6 +245,24 @@ openclaw-azure deploy   # Run preflight checks and deploy
 | `404 Resource not found` from AI model | Wrong `baseUrl` or `api` in config | Ensure `baseUrl` ends with `/openai/v1` and `api` is `openai-responses` |
 | Bot not responding | Pairing not approved or service crashed | Run approve-pairing workflow; check `systemctl status openclaw` |
 | Federated credential "duplicate" error | Entra ID eventual consistency | Re-run the bootstrap workflow — it has built-in retry logic |
+| Quota still consumed after deleting resources | Azure AI Services uses **soft-delete** — deleted accounts hold quota for 48 hours | Purge soft-deleted accounts (see below) |
+
+### Recovering Quota from Soft-Deleted AI Services
+
+When you delete a resource group containing Azure AI Services, the account enters a **soft-delete** state and continues to consume TPM quota for up to 48 hours. To reclaim quota immediately:
+
+```bash
+# List soft-deleted accounts
+az cognitiveservices account list-deleted --query "[].{name:name, location:location}" -o table
+
+# Purge to release quota immediately
+az cognitiveservices account purge \
+  --name <account-name> \
+  --resource-group <original-rg-name> \
+  --location <region>
+```
+
+> ⚠️ **Always purge after teardown** if you plan to redeploy. Otherwise, you may hit `InsufficientQuota` errors even though no visible resources exist.
 
 ---
 
