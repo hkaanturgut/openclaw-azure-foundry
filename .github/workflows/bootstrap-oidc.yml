@@ -240,6 +240,8 @@ jobs:
           # Brief pause between credential operations to avoid Entra ID race conditions
           sleep 5
           ensure_fc "github-pr" "repo:${REPO}:pull_request"
+          sleep 5
+          ensure_fc "github-env-prod" "repo:${REPO}:environment:prod"
 
           ensure_role() {
             local role="$1"
