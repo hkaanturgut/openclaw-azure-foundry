@@ -167,10 +167,26 @@ jobs:
             echo "Reusing existing app registration: $appId"
           fi
 
-          if ! az ad sp show --id "$appId" >/dev/null 2>&1; then
-            az ad sp create --id "$appId" -o none
-          fi
+          # Entra ID may take a few seconds to propagate a newly created app registration.
+          # Retry SP creation to handle this eventual-consistency delay.
+          for i in 1 2 3 4 5; do
+            if az ad sp show --id "$appId" >/dev/null 2>&1; then
+              echo "Service principal already exists for $appId"
+              break
+            fi
+            echo "Attempt $i: creating service principal for $appId ..."
+            if az ad sp create --id "$appId" -o none 2>/dev/null; then
+              echo "Service principal created successfully"
+              break
+            fi
+            echo "Attempt $i failed — waiting 10s for Entra ID propagation ..."
+            sleep 10
+          done
           spObjectId=$(az ad sp show --id "$appId" --query id -o tsv)
+          if [ -z "$spObjectId" ]; then
+            echo "ERROR: Could not resolve service principal object ID for appId=$appId" >&2
+            exit 1
+          fi
 
           ensure_fc() {
             local name="$1"
