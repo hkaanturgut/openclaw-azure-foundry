@@ -151,38 +151,70 @@ jobs:
 
           APP_NAME='${{ inputs.app_name }}'
           REPO='${{ github.repository }}'
+          SUBSCRIPTION_ID='${{ steps.context.outputs.subscription_id }}'
 
-          appId=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
-          az ad sp create --id "$appId" -o none
+          appId=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv)
+          if [ -z "$appId" ]; then
+            if ! appId=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv); then
+              echo "ERROR: Failed to create app registration '$APP_NAME'." >&2
+              echo "This usually means the bootstrap identity lacks Entra app registration permissions." >&2
+              echo "Grant Application Administrator (or equivalent app registration rights)," >&2
+              echo "or pre-create the app and re-run with app_name set to that existing app." >&2
+              exit 1
+            fi
+            echo "Created app registration: $appId"
+          else
+            echo "Reusing existing app registration: $appId"
+          fi
+
+          if ! az ad sp show --id "$appId" >/dev/null 2>&1; then
+            az ad sp create --id "$appId" -o none
+          fi
           spObjectId=$(az ad sp show --id "$appId" --query id -o tsv)
 
-          az ad app federated-credential create --id "$appId" --parameters "{
-            \"name\": \"github-main\",
-            \"issuer\": \"https://token.actions.githubusercontent.com\",
-            \"subject\": \"repo:${REPO}:ref:refs/heads/main\",
-            \"audiences\": [\"api://AzureADTokenExchange\"]
-          }" -o none
+          ensure_fc() {
+            local name="$1"
+            local subject="$2"
+            local exists
+            exists=$(az ad app federated-credential list --id "$appId" --query "[?name=='$name'] | [0].name" -o tsv)
+            if [ "$exists" = "$name" ]; then
+              echo "Federated credential exists: $name"
+            else
+              az ad app federated-credential create --id "$appId" --parameters "{
+                \"name\": \"$name\",
+                \"issuer\": \"https://token.actions.githubusercontent.com\",
+                \"subject\": \"$subject\",
+                \"audiences\": [\"api://AzureADTokenExchange\"]
+              }" -o none
+              echo "Created federated credential: $name"
+            fi
+          }
 
-          az ad app federated-credential create --id "$appId" --parameters "{
-            \"name\": \"github-pr\",
-            \"issuer\": \"https://token.actions.githubusercontent.com\",
-            \"subject\": \"repo:${REPO}:pull_request\",
-            \"audiences\": [\"api://AzureADTokenExchange\"]
-          }" -o none
+          ensure_fc "github-main" "repo:${REPO}:ref:refs/heads/main"
+          ensure_fc "github-pr" "repo:${REPO}:pull_request"
 
-          az role assignment create \
-            --assignee-object-id "$spObjectId" \
-            --assignee-principal-type ServicePrincipal \
-            --role "Contributor" \
-            --scope "/subscriptions/${{ steps.context.outputs.subscription_id }}" \
-            -o none
+          ensure_role() {
+            local role="$1"
+            local assignment
+            assignment=$(az role assignment list \
+              --assignee-object-id "$spObjectId" \
+              --scope "/subscriptions/$SUBSCRIPTION_ID" \
+              --query "[?roleDefinitionName=='$role'] | [0].id" -o tsv)
+            if [ -n "$assignment" ]; then
+              echo "Role assignment exists: $role"
+            else
+              az role assignment create \
+                --assignee-object-id "$spObjectId" \
+                --assignee-principal-type ServicePrincipal \
+                --role "$role" \
+                --scope "/subscriptions/$SUBSCRIPTION_ID" \
+                -o none
+              echo "Assigned role: $role"
+            fi
+          }
 
-          az role assignment create \
-            --assignee-object-id "$spObjectId" \
-            --assignee-principal-type ServicePrincipal \
-            --role "User Access Administrator" \
-            --scope "/subscriptions/${{ steps.context.outputs.subscription_id }}" \
-            -o none
+          ensure_role "Contributor"
+          ensure_role "User Access Administrator"
 
           echo "app_id=$appId" >> "$GITHUB_OUTPUT"
 

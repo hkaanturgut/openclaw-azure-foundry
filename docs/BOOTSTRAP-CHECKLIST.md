@@ -28,6 +28,8 @@ Complete all of the following in one workflow run:
 
 Bootstrap uses GitHub OIDC login with the `BOOTSTRAP_AZURE_*` repository variables. No bootstrap secret is required.
 
+If the bootstrap identity cannot create app registrations in Entra ID, pre-create the target app once and run bootstrap with `app_name` set to that existing app display name.
+
 ## Recommended Workflow Inputs
 
 Run **Bootstrap OIDC and Repo Settings** with these values:
