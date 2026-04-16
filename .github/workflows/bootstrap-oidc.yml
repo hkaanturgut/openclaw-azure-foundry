@@ -215,18 +215,30 @@ jobs:
             existingBySubject=$(az ad app federated-credential list --id "$appId" --query "[?subject=='$subject'] | [0].name" -o tsv 2>/dev/null || true)
             if [ -n "$existingByName" ] || [ -n "$existingBySubject" ]; then
               echo "Federated credential already exists for subject '$subject' (name: ${existingByName:-$existingBySubject})"
-            else
-              az ad app federated-credential create --id "$appId" --parameters "{
+              return 0
+            fi
+            # Retry create — Entra ID may reject with "duplicate values" due to
+            # eventual consistency when multiple credentials are created in quick succession.
+            for attempt in 1 2 3; do
+              if az ad app federated-credential create --id "$appId" --parameters "{
                 \"name\": \"$name\",
                 \"issuer\": \"https://token.actions.githubusercontent.com\",
                 \"subject\": \"$subject\",
                 \"audiences\": [\"api://AzureADTokenExchange\"]
-              }" -o none
-              echo "Created federated credential: $name"
-            fi
+              }" -o none 2>/dev/null; then
+                echo "Created federated credential: $name"
+                return 0
+              fi
+              echo "Federated credential create attempt $attempt failed for '$name', retrying in 15s ..."
+              sleep 15
+            done
+            echo "ERROR: Failed to create federated credential '$name' after 3 attempts." >&2
+            return 1
           }
 
           ensure_fc "github-main" "repo:${REPO}:ref:refs/heads/main"
+          # Brief pause between credential operations to avoid Entra ID race conditions
+          sleep 5
           ensure_fc "github-pr" "repo:${REPO}:pull_request"
 
           ensure_role() {
