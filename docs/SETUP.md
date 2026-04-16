@@ -25,8 +25,8 @@ It will:
 
 Prerequisite for this bootstrap workflow:
 
-1. Add repository secret `AZURE_BOOTSTRAP_CREDENTIALS` (same shape as `AZURE_CREDENTIALS`) for an identity with rights to create app registrations and role assignments
-2. Optionally override at runtime using `azure_bootstrap_credentials` input (for temporary/testing credentials)
+1. Create a bootstrap OIDC app/service principal in Entra ID with repo federated credentials and assign subscription roles (`Contributor`, `User Access Administrator`)
+2. Set repository variables `BOOTSTRAP_AZURE_CLIENT_ID`, `BOOTSTRAP_AZURE_TENANT_ID`, and `BOOTSTRAP_AZURE_SUBSCRIPTION_ID`
 
 SSH key automation options:
 
@@ -37,10 +37,10 @@ SSH key automation options:
 
 Security note:
 
-1. Prefer repository secret `AZURE_BOOTSTRAP_CREDENTIALS` over runtime input for production use.
+1. The bootstrap workflow uses GitHub OIDC (no bootstrap client secret).
 2. Treat `ssh_public_key` and `telegram_bot_token` workflow inputs as sensitive values and only run this workflow in trusted repositories.
 
-If you do not want bootstrap credentials in GitHub, use the manual CLI method below instead.
+If you do not want workflow-based bootstrap, use the manual CLI method below instead.
 
 ### Create an App Registration
 

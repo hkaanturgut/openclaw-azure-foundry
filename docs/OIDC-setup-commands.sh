@@ -58,15 +58,7 @@ az ad app federated-credential create --id "$appId" --parameters '{
   "audiences":["api://AzureADTokenExchange"]
 }'
 
-# 4) Add federated credential for workflow_dispatch (workflow runs)
-az ad app federated-credential create --id "$appId" --parameters '{
-  "name":"github-actions-dispatch",
-  "issuer":"https://token.actions.githubusercontent.com",
-  "subject":"repo:'$OWNER'/'$REPO':ref:refs/heads/main",
-  "audiences":["api://AzureADTokenExchange"]
-}'
-
-# 5) Add federated credential for pull_request validation workflow
+# 4) Add federated credential for pull_request validation workflow
 az ad app federated-credential create --id "$appId" --parameters '{
   "name":"github-actions-pr",
   "issuer":"https://token.actions.githubusercontent.com",
@@ -74,7 +66,7 @@ az ad app federated-credential create --id "$appId" --parameters '{
   "audiences":["api://AzureADTokenExchange"]
 }'
 
-# 6) Assign roles at subscription scope
+# 5) Assign roles at subscription scope
 subId=$(az account show --query id -o tsv)
 tenantId=$(az account show --query tenantId -o tsv)
 
@@ -84,7 +76,7 @@ az role assignment create --assignee-object-id "$spObjectId" --assignee-principa
 # User Access Administrator role
 az role assignment create --assignee-object-id "$spObjectId" --assignee-principal-type ServicePrincipal --role "User Access Administrator" --scope "/subscriptions/$subId"
 
-# 7) Print variables to set in GitHub
+# 6) Print variables to set in GitHub
 cat <<EOT
 Set these values in GitHub repository Variables (not secrets):
 AZURE_CLIENT_ID=$appId

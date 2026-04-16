@@ -7,9 +7,6 @@ on:
         description: "App Registration display name"
         required: true
         default: "openclaw-github-actions"
-      azure_bootstrap_credentials:
-        description: "Optional bootstrap credentials JSON override (uses repo secret when empty)"
-        required: false
       target_tenant_id:
         description: "Optional tenant ID to enforce before setup"
         required: false
@@ -40,55 +37,28 @@ jobs:
       id-token: write
 
     steps:
-      - name: Validate Input Override Credentials JSON
-        if: ${{ inputs.azure_bootstrap_credentials != '' }}
+      - name: Validate Bootstrap OIDC Variables
         shell: bash
         env:
-          AZURE_CREDS_JSON: ${{ inputs.azure_bootstrap_credentials }}
+          BOOTSTRAP_AZURE_CLIENT_ID: ${{ vars.BOOTSTRAP_AZURE_CLIENT_ID }}
+          BOOTSTRAP_AZURE_TENANT_ID: ${{ vars.BOOTSTRAP_AZURE_TENANT_ID }}
+          BOOTSTRAP_AZURE_SUBSCRIPTION_ID: ${{ vars.BOOTSTRAP_AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
-          echo '::add-mask::${{ inputs.azure_bootstrap_credentials }}'
-          echo "$AZURE_CREDS_JSON" | jq -e . >/dev/null
-          for key in clientId clientSecret subscriptionId tenantId; do
-            value=$(echo "$AZURE_CREDS_JSON" | jq -r --arg k "$key" '.[$k] // empty')
+          for key in BOOTSTRAP_AZURE_CLIENT_ID BOOTSTRAP_AZURE_TENANT_ID BOOTSTRAP_AZURE_SUBSCRIPTION_ID; do
+            value="${!key}"
             if [ -z "$value" ]; then
-              echo "ERROR: azure_bootstrap_credentials is missing required field: $key" >&2
+              echo "ERROR: Repository variable $key is empty or not set." >&2
               exit 1
             fi
           done
 
-      - name: Validate Repository Bootstrap Credentials JSON
-        if: ${{ inputs.azure_bootstrap_credentials == '' }}
-        shell: bash
-        env:
-          AZURE_CREDS_JSON: ${{ secrets.AZURE_BOOTSTRAP_CREDENTIALS }}
-        run: |
-          set -euo pipefail
-          if [ -z "$AZURE_CREDS_JSON" ]; then
-            echo "ERROR: Secret AZURE_BOOTSTRAP_CREDENTIALS is empty or not set." >&2
-            exit 1
-          fi
-          echo '::add-mask::${{ secrets.AZURE_BOOTSTRAP_CREDENTIALS }}'
-          echo "$AZURE_CREDS_JSON" | jq -e . >/dev/null
-          for key in clientId clientSecret subscriptionId tenantId; do
-            value=$(echo "$AZURE_CREDS_JSON" | jq -r --arg k "$key" '.[$k] // empty')
-            if [ -z "$value" ]; then
-              echo "ERROR: Secret AZURE_BOOTSTRAP_CREDENTIALS is missing required field: $key" >&2
-              exit 1
-            fi
-          done
-
-      - name: Azure Login (Input Override Credentials)
-        if: ${{ inputs.azure_bootstrap_credentials != '' }}
+      - name: Azure Login (Bootstrap OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ inputs.azure_bootstrap_credentials }}
-
-      - name: Azure Login (Repository Bootstrap Credentials)
-        if: ${{ inputs.azure_bootstrap_credentials == '' }}
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_BOOTSTRAP_CREDENTIALS }}
+          client-id: ${{ vars.BOOTSTRAP_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.BOOTSTRAP_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.BOOTSTRAP_AZURE_SUBSCRIPTION_ID }}
 
       - name: Validate Azure Context
         id: context
@@ -104,7 +74,7 @@ jobs:
 
           if [ -n "$targetTenantId" ] && [ "$currentTenantId" != "$targetTenantId" ]; then
             echo "ERROR: Active tenant ($currentTenantId) does not match target tenant ($targetTenantId)." >&2
-            echo "Use bootstrap credentials scoped to the intended tenant and re-run." >&2
+            echo "Update BOOTSTRAP_AZURE_TENANT_ID or target_tenant_id and re-run." >&2
             exit 1
           fi
 
@@ -124,9 +94,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n '${{ inputs.azure_bootstrap_credentials }}' ]; then
-            echo '::add-mask::${{ inputs.azure_bootstrap_credentials }}'
-          fi
           if [ -n '${{ inputs.telegram_bot_token }}' ]; then
             echo '::add-mask::${{ inputs.telegram_bot_token }}'
           fi
@@ -203,13 +170,6 @@ jobs:
             \"audiences\": [\"api://AzureADTokenExchange\"]
           }" -o none
 
-          az ad app federated-credential create --id "$appId" --parameters "{
-            \"name\": \"github-dispatch\",
-            \"issuer\": \"https://token.actions.githubusercontent.com\",
-            \"subject\": \"repo:${REPO}:ref:refs/heads/main\",
-            \"audiences\": [\"api://AzureADTokenExchange\"]
-          }" -o none
-
           az role assignment create \
             --assignee-object-id "$spObjectId" \
             --assignee-principal-type ServicePrincipal \
@@ -275,7 +235,7 @@ jobs:
           - App Registration: `${{ steps.oidc.outputs.app_id }}`
           - Tenant: `${{ steps.context.outputs.tenant_id }}`
           - Subscription: `${{ steps.context.outputs.subscription_id }}`
-          - Federated credentials: main, pull_request, workflow_dispatch on main
+          - Federated credentials: main, pull_request
           - Role assignments: Contributor + User Access Administrator
           - Repo variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
           - Repo secrets: SSH_PUBLIC_KEY, TELEGRAM_BOT_TOKEN

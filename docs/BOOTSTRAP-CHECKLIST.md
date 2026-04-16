@@ -18,34 +18,27 @@ Complete all of the following in one workflow run:
 1. Repository contains workflow file: `.github/workflows/bootstrap-oidc.yml`
 2. You have GitHub admin/maintainer rights for repository variables and secrets
 3. You have Azure rights to create app registrations and role assignments
-4. Repository secret `AZURE_BOOTSTRAP_CREDENTIALS` is set (unless you pass credentials via workflow input)
+4. Repository variables are set for bootstrap OIDC identity:
+   - `BOOTSTRAP_AZURE_CLIENT_ID`
+   - `BOOTSTRAP_AZURE_TENANT_ID`
+   - `BOOTSTRAP_AZURE_SUBSCRIPTION_ID`
 5. Telegram bot token is ready
 
-## Bootstrap Credentials Format
+## Bootstrap Identity Model
 
-`AZURE_BOOTSTRAP_CREDENTIALS` should match the standard `azure/login` JSON shape:
-
-```json
-{
-  "clientId": "<app-client-id>",
-  "clientSecret": "<app-client-secret>",
-  "subscriptionId": "<subscription-id>",
-  "tenantId": "<tenant-id>"
-}
-```
+Bootstrap uses GitHub OIDC login with the `BOOTSTRAP_AZURE_*` repository variables. No bootstrap secret is required.
 
 ## Recommended Workflow Inputs
 
 Run **Bootstrap OIDC and Repo Settings** with these values:
 
 1. `app_name`: `openclaw-github-actions` (or your preferred name)
-2. `azure_bootstrap_credentials`: empty (use repo secret)
-3. `target_tenant_id`: your tenant ID
-4. `target_subscription_id`: your subscription ID
-5. `generate_ssh_key`: `true`
-6. `ssh_public_key`: empty
-7. `ssh_private_key_secret_name`: `OPENCLAW_SSH_PRIVATE_KEY`
-8. `telegram_bot_token`: your token
+2. `target_tenant_id`: your tenant ID
+3. `target_subscription_id`: your subscription ID
+4. `generate_ssh_key`: `true`
+5. `ssh_public_key`: empty
+6. `ssh_private_key_secret_name`: `OPENCLAW_SSH_PRIVATE_KEY`
+7. `telegram_bot_token`: your token
 
 ## What the Workflow Sets
 
@@ -90,7 +83,8 @@ After workflow is green, verify:
 
 ## Failure Recovery Tips
 
-1. Tenant mismatch error: update bootstrap credentials or `target_tenant_id`
-2. Subscription mismatch error: verify `target_subscription_id`
-3. Role assignment failures: check permissions of bootstrap identity
-4. Duplicate app name concerns: use a unique `app_name` input
+1. Tenant mismatch error: verify `BOOTSTRAP_AZURE_TENANT_ID` and `target_tenant_id`
+2. Missing `BOOTSTRAP_AZURE_*` variable error: verify repository variables are set
+3. Subscription mismatch error: verify `target_subscription_id`
+4. Role assignment failures: check permissions of bootstrap identity
+5. Duplicate app name concerns: use a unique `app_name` input
