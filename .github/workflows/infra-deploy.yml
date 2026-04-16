@@ -37,6 +37,7 @@ jobs:
   deploy:
     needs: what-if
     runs-on: ubuntu-latest
+    environment: prod
     permissions:
       id-token: write
       contents: read
