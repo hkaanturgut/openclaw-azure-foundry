@@ -3,9 +3,10 @@
     "mode": "merge",
     "providers": {
       "azure-openai-responses": {
-        "baseUrl": "https://FOUNDRY_ACCOUNT_NAME.openai.azure.com/openai",
+        "baseUrl": "https://FOUNDRY_ACCOUNT_NAME.services.ai.azure.com/openai",
         "apiKey": "FOUNDRY_API_KEY",
         "api": "openai-responses",
+        "apiVersion": "2025-03-01-preview",
         "authHeader": false,
         "headers": {
           "api-key": "FOUNDRY_API_KEY"
