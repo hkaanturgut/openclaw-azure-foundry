@@ -1,266 +1,333 @@
-# openclaw-azure-foundry
+<div align="center">
 
-Deploy a private [OpenClaw](https://openclaw.ai) AI assistant on Azure, connect it to Telegram, and manage it with GitHub Actions CI/CD using OIDC authentication — no stored cloud credentials.
+# 🐾 OpenClaw on Azure Foundry
 
-This project is designed for teams that need strong security controls and repeatable deployment while still giving developers a fast path to adoption.
+**Deploy a private AI assistant on Azure with zero stored credentials**
 
-## Architecture
+[![Deploy Infrastructure](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/infra-deploy.yml/badge.svg)](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/infra-deploy.yml)
+[![Validate](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/validate.yml/badge.svg)](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[![Architecture Diagram](https://app.eraser.io/workspace/FxqFVv3guQinjSs8UiS6/preview?elements=OrdqoAHBlks39KuU5JUbI&type=embed)](https://app.eraser.io/workspace/FxqFVv3guQinjSs8UiS6)
+A production-ready reference architecture for running [OpenClaw](https://openclaw.ai) on Azure — connected to Telegram, secured with private endpoints, and fully automated with GitHub Actions CI/CD using OIDC (no stored cloud secrets).
 
-### Data Flow
+[Getting Started](#-getting-started) · [Architecture](#-architecture) · [Workflows](#-cicd-workflows) · [FAQ](#-faq) · [Contributing](#-contributing)
 
-1. **User → Telegram → VM**: Messages flow from Telegram to the OpenClaw gateway on a private Azure VM via long polling.
-2. **VM → Azure AI Services**: OpenClaw calls GPT-4o via the OpenAI Responses API through a private endpoint.
-3. **VM → Key Vault**: The VM's managed identity reads secrets (API key, bot token) through a private endpoint.
-4. **CI/CD → Azure**: GitHub Actions authenticates via OIDC federation with Entra ID — no stored service principal secrets.
+</div>
 
-### Security Highlights
+---
 
-- VM has no public IP; NSG denies inbound from internet.
-- Azure AI Services and Key Vault have public access disabled (private endpoints only).
-- VM uses managed identity to retrieve secrets from Key Vault.
-- GitHub Actions authenticates with OIDC federation, not client secrets.
-- Telegram uses pairing mode — only approved senders can interact with the bot.
+## ✨ Features
 
-## Who This Is For
+- 🔐 **Zero stored credentials** — GitHub Actions authenticates via OIDC federation with Entra ID
+- 🏰 **Fully private networking** — VM has no public IP; AI Services and Key Vault use private endpoints only
+- 🤖 **Telegram integration** — Chat with GPT-4o through a Telegram bot with pairing-based access control
+- 🚀 **One-click bootstrap** — A single workflow creates all Entra ID objects, role assignments, and repo secrets
+- 📦 **Infrastructure as Code** — Everything defined in Bicep with parameterized deployments
+- ✅ **Approval gates** — Infrastructure changes require manual approval before touching production
+- 🔄 **GitOps config management** — Push config changes to `main` and they're automatically applied to the VM
 
-This repository is a good fit if you need:
+---
 
-1. No public VM endpoint.
-2. No long-lived cloud credentials in GitHub.
-3. Private AI and Key Vault connectivity over private endpoints.
-4. A deployment path that is understandable, auditable, and easy to demo.
+## 🏗 Architecture
 
-## What This Project Deploys
+<div align="center">
 
-One deployment creates:
+![Architecture Diagram](docs/images/architecture.png)
 
-1. A resource group.
-2. A virtual network with a private VM subnet and private endpoint subnet.
-3. An Azure AI Services account with a GPT-4o model deployment.
-4. Azure AI Foundry Hub and Project resources.
-5. A private Key Vault with secrets (API key, Telegram bot token).
-6. A Linux VM with OpenClaw installed and managed by systemd.
-7. Private endpoints and private DNS zone links for AI Services and Key Vault.
+</div>
 
-## Repository Layout
+### How It Works
 
-| Path | Description |
+| Flow | Description |
 |------|-------------|
-| [infrastructure/main.bicep](infrastructure/main.bicep) | Root subscription-scope Bicep deployment |
-| [infrastructure/modules/](infrastructure/modules) | Networking, compute, AI services, Key Vault, private endpoints |
-| [infrastructure/parameters/](infrastructure/parameters) | Environment parameter files (`prod.bicepparam`) |
-| [infrastructure/cloud-init/](infrastructure/cloud-init) | VM bootstrap: installs Node.js, Azure CLI, OpenClaw; creates systemd service |
-| [openclaw-config/](openclaw-config) | Runtime OpenClaw config templates (`openclaw.template.json`, `auth-profiles.template.json`) |
-| [.github/workflows/](.github/workflows) | CI/CD pipelines (bootstrap, validate, deploy, config, pairing) |
-| [scripts/](scripts) | Operational helpers: connect, validate, teardown |
-| [cli/](cli) | Local CLI tool for workshop/demo deployments |
-| [docs/](docs) | Setup, architecture, and troubleshooting documentation |
+| **User → Telegram → VM** | Messages flow from Telegram to the OpenClaw gateway on a private VM via long polling |
+| **VM → Azure AI Services** | OpenClaw calls GPT-4o via the OpenAI Responses API through a private endpoint |
+| **VM → Key Vault** | The VM's managed identity reads secrets (API key, bot token) through a private endpoint |
+| **GitHub Actions → Azure** | CI/CD authenticates via OIDC federation with Entra ID — no stored service principal secrets |
 
-## CI/CD Workflows
+### Security Model
 
-| Workflow | Trigger | Description |
-|----------|---------|-------------|
-| [bootstrap-oidc.yml](.github/workflows/bootstrap-oidc.yml) | `workflow_dispatch` | One-time setup: creates Entra app registration, service principal, federated credentials, Azure role assignments, and sets repo variables/secrets |
-| [validate.yml](.github/workflows/validate.yml) | Pull requests | Bicep compile/lint, ARM validation, shell script linting |
-| [infra-deploy.yml](.github/workflows/infra-deploy.yml) | Push to `main` (infra changes) | What-if preview → `prod` environment approval → Bicep deployment → VM verification |
-| [openclaw-config.yml](.github/workflows/openclaw-config.yml) | Push to `main` (config changes) | Renders config templates, fetches secrets on VM via managed identity, restarts OpenClaw |
-| [approve-pairing.yml](.github/workflows/approve-pairing.yml) | `workflow_dispatch` | Approves Telegram pairing codes for new users via `az vm run-command` |
+| Layer | Control |
+|-------|---------|
+| Network | VM has no public IP; NSG blocks all inbound internet traffic |
+| AI Services | Public access disabled; accessible only via private endpoint |
+| Key Vault | Public access disabled; accessible only via private endpoint |
+| Identity | VM uses managed identity; GitHub Actions uses OIDC federation |
+| Access | Telegram bot uses pairing mode — only approved senders can interact |
 
-## Prerequisites
+---
 
-1. Azure subscription with subscription-scope deployment permissions.
-2. GitHub repository with Actions enabled.
-3. Azure CLI installed and logged in.
-4. Telegram bot token from [@BotFather](https://t.me/BotFather).
-5. SSH keypair for VM access.
-6. A GitHub classic PAT with `repo` scope (stored as `BOOTSTRAP_GH_PAT` secret for the bootstrap workflow).
+## 📁 Repository Structure
 
-### Tooling Quick Checks
-
-```bash
-az --version
-az account show -o table
-gh auth status
+```
+openclaw-azure-foundry/
+├── .github/workflows/         # CI/CD pipelines
+│   ├── bootstrap-oidc.yml     #   One-time Entra ID + repo setup
+│   ├── validate.yml           #   PR validation (Bicep lint, ARM check)
+│   ├── infra-deploy.yml       #   Infrastructure deployment with approval
+│   ├── openclaw-config.yml    #   Config push to VM
+│   └── approve-pairing.yml    #   Telegram pairing approval
+├── infrastructure/
+│   ├── main.bicep             # Root subscription-scope deployment
+│   ├── modules/               # Networking, compute, AI, Key Vault, private endpoints
+│   ├── parameters/            # Environment parameter files
+│   └── cloud-init/            # VM bootstrap (Node.js, Azure CLI, OpenClaw, systemd)
+├── openclaw-config/           # Runtime config templates
+├── scripts/                   # Operational helpers (connect, validate, teardown)
+├── cli/                       # Local CLI for workshop/demo deployments
+└── docs/                      # Extended documentation
 ```
 
-SSH key generation:
+---
+
+## 🔄 CI/CD Workflows
+
+| Workflow | Trigger | What It Does |
+|----------|---------|--------------|
+| **[Bootstrap OIDC](.github/workflows/bootstrap-oidc.yml)** | Manual | Creates Entra app registration, service principal, federated credentials, role assignments, and sets repo variables/secrets |
+| **[Validate](.github/workflows/validate.yml)** | Pull request | Runs Bicep compile/lint, ARM template validation, and shell script linting |
+| **[Deploy Infrastructure](.github/workflows/infra-deploy.yml)** | Push to `main` | What-if preview → `prod` approval gate → Bicep deployment → VM health check |
+| **[Update Config](.github/workflows/openclaw-config.yml)** | Push to `main` | Renders config templates, fetches secrets on VM via managed identity, restarts OpenClaw |
+| **[Approve Pairing](.github/workflows/approve-pairing.yml)** | Manual | Approves a Telegram pairing code for a new user |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+| Requirement | Purpose |
+|-------------|---------|
+| Azure subscription | With subscription-scope deployment permissions |
+| Azure CLI | `az --version` to verify |
+| GitHub CLI | `gh auth status` to verify |
+| Telegram bot token | From [@BotFather](https://t.me/BotFather) |
+| SSH keypair | `ssh-keygen -t ed25519 -C "openclaw"` |
+| GitHub classic PAT | With `repo` scope (for bootstrap workflow) |
+
+### Step 1 — Fork & Clone
 
 ```bash
-ssh-keygen -t ed25519 -C "openclaw"
-```
-
-## End-to-End Setup
-
-Follow these steps in order for a first successful deployment.
-
-### Step 1: Fork or Clone
-
-```bash
-git clone https://github.com/hkaanturgut/openclaw-azure-foundry.git
+# Fork this repo via the GitHub UI, then:
+git clone https://github.com/<your-username>/openclaw-azure-foundry.git
 cd openclaw-azure-foundry
 ```
 
-### Step 2: Create Bootstrap PAT
+### Step 2 — Store the Bootstrap PAT
 
-1. Create a GitHub classic PAT with `repo` scope.
-2. Store it as a repository secret named `BOOTSTRAP_GH_PAT`.
+Create a GitHub [classic PAT](https://github.com/settings/tokens) with `repo` scope, then add it as a repository secret:
 
-### Step 3: Run Bootstrap Workflow
+```bash
+gh secret set BOOTSTRAP_GH_PAT
+```
 
-Go to **Actions → Bootstrap OIDC & Repo Settings → Run workflow**.
+> **Why a PAT?** The default `GITHUB_TOKEN` cannot create repository variables or secrets. The PAT is only used by the bootstrap workflow.
+
+### Step 3 — Run the Bootstrap Workflow
+
+```bash
+gh workflow run bootstrap-oidc.yml
+```
+
+Or go to **Actions → Bootstrap OIDC & Repo Settings → Run workflow** in the GitHub UI.
 
 This automatically:
-1. Creates an Entra ID app registration and service principal.
-2. Adds federated credentials for `main`, `pull_request`, and `environment:prod` subjects.
-3. Assigns `Contributor` and `User Access Administrator` roles on your subscription.
-4. Sets repository variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) and secrets (`SSH_PUBLIC_KEY`, `TELEGRAM_BOT_TOKEN`).
+1. Creates an Entra ID app registration and service principal
+2. Adds federated credentials for `main`, `pull_request`, and `environment:prod`
+3. Assigns `Contributor` and `User Access Administrator` roles on your subscription
+4. Sets all required repository variables and secrets
 
-### Step 4: Create GitHub Environment
+### Step 4 — Create the `prod` Environment
 
-1. Create a `prod` environment in **Settings → Environments**.
-2. Add required reviewers for deployment approval gates.
+1. Go to **Settings → Environments → New environment**
+2. Name it `prod`
+3. Add yourself as a required reviewer
 
-> **Note**: Environment protection rules require a public repository or GitHub Team/Enterprise plan.
+> **Note:** Environment protection rules require a **public** repository or a GitHub **Team/Enterprise** plan.
 
-### Step 5: Review Parameters
+### Step 5 — Customize Parameters
 
-Check [infrastructure/parameters/prod.bicepparam](infrastructure/parameters/prod.bicepparam):
+Edit [`infrastructure/parameters/prod.bicepparam`](infrastructure/parameters/prod.bicepparam) and update resource names to be globally unique:
 
-1. Resource names are globally unique where required.
-2. Region and VM size fit your needs.
-3. Model and capacity settings are appropriate.
-
-### Step 6: Push to Main
-
-```bash
-git push origin main
+```bicep
+param resourceGroupName = 'rg-openclaw'
+param aiServicesName    = 'oc-ai-services-<unique>'
+param keyVaultName      = 'kv-oc-<unique>'
 ```
 
-This triggers the infrastructure deployment pipeline: **what-if → approval → deploy → verify**.
-
-### Step 7: Push OpenClaw Config
-
-After infrastructure deployment succeeds, trigger the config workflow:
-
-1. Make a change in `openclaw-config/` and push to `main`, or
-2. Manually trigger the `Update OpenClaw Config` workflow.
-
-This renders config templates, fetches secrets from Key Vault on the VM, and restarts the OpenClaw gateway.
-
-### Step 8: Approve Telegram Pairing
-
-When you first message the bot, OpenClaw returns a pairing code. Approve it:
-
-1. Go to **Actions → Approve Telegram Pairing → Run workflow**.
-2. Enter the pairing code from the Telegram message.
-
-### Step 9: Test the Bot
-
-Send a message to your Telegram bot. It should respond with a GPT-4o generated reply.
-
-## Deployment Verification
-
-After deployment, verify in this order:
-
-1. **Workflow status**: All CI/CD runs green.
-2. **VM service health**:
-   ```bash
-   ./scripts/validate-deployment.sh
-   ```
-3. **Connect to VM** (if needed):
-   ```bash
-   az extension add -n ssh
-   ./scripts/connect.sh
-   ```
-4. **Service logs**:
-   ```bash
-   sudo systemctl status openclaw
-   sudo journalctl -u openclaw -n 100 --no-pager
-   ```
-5. **Telegram**: Send a message and confirm the bot responds.
-
-## CLI Mode (Workshop/Demo)
-
-For faster onboarding without GitHub Actions:
+### Step 6 — Deploy
 
 ```bash
-cd cli
-npm install
-npm run build
-openclaw-azure init    # generates config and parameters
-openclaw-azure deploy  # runs preflight checks and deploys
+git add -A && git commit -m "chore: customize parameters" && git push
 ```
 
-## Operational Model
+This triggers the deployment pipeline: **what-if → approval → deploy → verify**.
 
-- Infrastructure changes: PR → merge to `main` → automated deployment.
-- Config changes: edit `openclaw-config/` → push to `main` → automated config push.
-- Secret rotation: update Key Vault secrets → re-trigger config workflow.
-- Never store API keys in repository files. Use Key Vault as the source of truth.
+### Step 7 — Push Config
 
-## Cost Guidance
+After infrastructure succeeds, trigger the config workflow by pushing a change to `openclaw-config/` or running manually:
 
-Cost depends mostly on:
+```bash
+gh workflow run openclaw-config.yml
+```
 
-1. VM SKU and uptime.
-2. Azure AI model usage and capacity.
-3. Private endpoint count.
+### Step 8 — Pair Your Telegram Bot
 
-Use Azure Cost Management and set budget alerts early. For demos, use low-cost SKUs and teardown immediately after.
+1. Message your bot on Telegram — it will return a **pairing code**
+2. Run the approval workflow:
+   ```bash
+   gh workflow run approve-pairing.yml -f pairing_code=YOUR_CODE
+   ```
 
-## Cleanup
+### Step 9 — Chat! 🎉
+
+Send a message to your Telegram bot. You should get a GPT-4o powered response.
+
+---
+
+## 🔧 Operations
+
+### Verify Deployment
+
+```bash
+./scripts/validate-deployment.sh
+```
+
+### Connect to VM
+
+```bash
+az extension add -n ssh
+./scripts/connect.sh
+```
+
+### Check Service Logs
+
+```bash
+# On the VM:
+sudo systemctl status openclaw
+sudo journalctl -u openclaw -n 100 --no-pager
+```
+
+### Rotate Secrets
+
+Update the secret in Key Vault, then re-trigger the config workflow:
+
+```bash
+gh workflow run openclaw-config.yml
+```
+
+### Teardown
 
 ```bash
 ./scripts/teardown.sh
 ```
 
-or
+---
+
+## 💻 CLI Mode (Workshop / Demo)
+
+For quick deployments without GitHub Actions:
 
 ```bash
-az group delete --name rg-openclaw --yes --no-wait
+cd cli && npm install && npm run build
+openclaw-azure init     # Generate config and parameters
+openclaw-azure deploy   # Run preflight checks and deploy
 ```
 
-## Common Pitfalls
+---
 
-| Issue | Cause |
-|-------|-------|
-| Deployment blocked without approval button | Missing `prod` environment or reviewers not configured |
-| `HTTP 403` on bootstrap secrets step | `BOOTSTRAP_GH_PAT` missing or expired |
-| `404 Resource not found` from AI model | Wrong `baseUrl` or `api` type in OpenClaw config |
-| Telegram bot not responding | Pairing not approved, or OpenClaw service crashed |
-| Federated credential "duplicate values" error | Entra ID eventual consistency — retry after a few seconds |
+## ⚠️ Common Pitfalls
 
-## Additional Documentation
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| No approval button on deploy | `prod` environment missing or no reviewers | Create environment in **Settings → Environments** |
+| `HTTP 403` on bootstrap secrets step | `BOOTSTRAP_GH_PAT` missing or expired | Regenerate PAT with `repo` scope |
+| `404 Resource not found` from AI model | Wrong `baseUrl` or `api` in config | Ensure `baseUrl` ends with `/openai/v1` and `api` is `openai-responses` |
+| Bot not responding | Pairing not approved or service crashed | Run approve-pairing workflow; check `systemctl status openclaw` |
+| Federated credential "duplicate" error | Entra ID eventual consistency | Re-run the bootstrap workflow — it has built-in retry logic |
 
-- [docs/SETUP.md](docs/SETUP.md): Detailed command-level setup.
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): Deep architectural rationale.
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): Failure patterns and fixes.
-- [docs/BOOTSTRAP-CHECKLIST.md](docs/BOOTSTRAP-CHECKLIST.md): Bootstrap automation checklist.
+---
 
-## FAQ
+## 💰 Cost Guidance
 
-### Do I have to use GitHub CI/CD?
+Primary cost drivers:
 
-No. You can use CLI mode (`openclaw-azure init` + `openclaw-azure deploy`) for faster setup, especially for demos and workshops.
+- **VM** — SKU and uptime (use `Standard_B2s` for demos)
+- **Azure AI Services** — Token usage and provisioned capacity
+- **Private endpoints** — Per-endpoint hourly charge
 
-### Is the VM publicly exposed?
+> 💡 **Tip:** Set [Azure budget alerts](https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets) early. For demos, teardown resources immediately after.
 
-No. The VM has no public IP and is only accessible through Azure tools (`az vm run-command`, `az ssh vm`).
+---
 
-### Where are secrets stored?
+## ❓ FAQ
 
-In Azure Key Vault. The VM retrieves secrets at runtime through its managed identity via private endpoint.
+<details>
+<summary><b>Do I have to use GitHub Actions?</b></summary>
+<br>
+No. You can use CLI mode for quick deployments — ideal for workshops and demos.
+</details>
 
-### Can I customize the AI model?
+<details>
+<summary><b>Is the VM publicly exposed?</b></summary>
+<br>
+No. The VM has no public IP and is only accessible through Azure tools (<code>az vm run-command</code>, <code>az ssh vm</code>).
+</details>
 
-Yes. Adjust model fields in the parameter file and rerun the deployment.
+<details>
+<summary><b>Where are secrets stored?</b></summary>
+<br>
+In Azure Key Vault. The VM retrieves them at runtime through its managed identity via a private endpoint. No secrets are stored in the repository.
+</details>
 
-## Contributing
+<details>
+<summary><b>Can I use a different AI model?</b></summary>
+<br>
+Yes. Update <code>modelName</code> and <code>modelVersion</code> in the parameter file and redeploy.
+</details>
 
-Contributions are welcome. Please open an issue first for significant changes and ensure workflows pass before submitting a pull request.
+<details>
+<summary><b>Can I use a different chat platform instead of Telegram?</b></summary>
+<br>
+OpenClaw supports multiple platforms. Check the <a href="https://openclaw.ai">OpenClaw documentation</a> for available integrations.
+</details>
 
-## License
+---
 
-MIT. See [LICENSE](LICENSE).
+## 📚 Additional Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/SETUP.md](docs/SETUP.md) | Detailed command-level setup guide |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Deep architectural rationale |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Failure patterns and fixes |
+| [docs/BOOTSTRAP-CHECKLIST.md](docs/BOOTSTRAP-CHECKLIST.md) | Bootstrap automation checklist |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Here's how:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Make** your changes and ensure workflows pass
+4. **Open** a pull request
+
+Please open an issue first for significant changes to discuss the approach.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Built with ❤️ by [Kaan Turgut](https://github.com/hkaanturgut)**
+
+⭐ If you found this useful, please consider giving it a star!
+
+</div>
