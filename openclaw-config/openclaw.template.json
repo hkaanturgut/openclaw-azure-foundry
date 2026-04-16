@@ -3,7 +3,7 @@
     "mode": "merge",
     "providers": {
       "azure-openai-responses": {
-        "baseUrl": "https://FOUNDRY_ACCOUNT_NAME.services.ai.azure.com/openai",
+        "baseUrl": "https://FOUNDRY_ACCOUNT_NAME.openai.azure.com/openai",
         "apiKey": "FOUNDRY_API_KEY",
         "api": "openai-responses",
         "authHeader": false,
