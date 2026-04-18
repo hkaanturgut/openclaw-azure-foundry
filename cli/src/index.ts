@@ -12,12 +12,14 @@ function helpText(): string {
 Usage:
   openclaw-azure init
   openclaw-azure deploy
+  openclaw-azure pair
   openclaw-azure destroy
   openclaw-azure help
 
 Commands:
   init      Prompt for infrastructure values and save local config.
   deploy    Run Azure preflight checks and deploy infrastructure.
+  pair      Approve a Telegram pairing code on a running deployment.
   destroy   Delete all deployed resources and purge soft-deleted items.
 `;
 }
@@ -69,12 +71,27 @@ async function handleDeploy(projectRoot: string): Promise<void> {
     if (!pairingCode) {
       throw new Error("Pairing code is required.");
     }
-    await approvePairing(config, pairingCode);
+    await approvePairing(config.resourceGroupName, config.vmName, pairingCode);
     console.log("\n🎉 Pairing approved! Send a message to your bot — you should get a GPT-4o response.");
   } else {
-    console.log("\nYou can approve pairing later by running: openclaw-azure deploy");
+    console.log("\nYou can approve pairing later by running: openclaw-azure pair");
     console.log("Or manually: az vm run-command invoke -g <RG> -n <VM> --command-id RunShellScript --scripts \"sudo -u openclaw /home/openclaw/.npm-global/bin/openclaw pairing approve telegram <CODE>\"");
   }
+}
+
+async function handlePair(): Promise<void> {
+  const rgName = await ask("Resource group name");
+  if (!rgName) { throw new Error("Resource group name is required."); }
+
+  const vmName = await ask("VM name");
+  if (!vmName) { throw new Error("VM name is required."); }
+
+  console.log("\nSend a message to your Telegram bot to get a pairing code.\n");
+  const pairingCode = await ask("Enter the pairing code from Telegram");
+  if (!pairingCode) { throw new Error("Pairing code is required."); }
+
+  await approvePairing(rgName, vmName, pairingCode);
+  console.log("\n🎉 Pairing approved! Your bot should now respond.");
 }
 
 async function handleDestroy(): Promise<void> {
@@ -112,6 +129,11 @@ async function main(): Promise<void> {
 
   if (command === "deploy") {
     await handleDeploy(projectRoot);
+    return;
+  }
+
+  if (command === "pair") {
+    await handlePair();
     return;
   }
 

@@ -76,15 +76,12 @@ export async function runValidation(config: CliConfig): Promise<void> {
   ]);
 }
 
-export async function approvePairing(config: CliConfig, pairingCode: string): Promise<void> {
-  const rg = config.resourceGroupName;
-  const vm = config.vmName;
-
+export async function approvePairing(rgName: string, vmName: string, pairingCode: string): Promise<void> {
   console.log(`Approving pairing code: ${pairingCode}`);
   const code = await runCommand("az", [
     "vm", "run-command", "invoke",
-    "--resource-group", rg,
-    "--name", vm,
+    "--resource-group", rgName,
+    "--name", vmName,
     "--command-id", "RunShellScript",
     "--scripts", `sudo -u openclaw /home/openclaw/.npm-global/bin/openclaw pairing approve telegram ${pairingCode} 2>&1`,
   ]);
