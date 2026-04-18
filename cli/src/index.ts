@@ -86,7 +86,7 @@ async function handleDestroy(projectRoot: string): Promise<void> {
   console.log(`\n⚠️  WARNING: This will permanently delete ALL resources in resource group "${config.resourceGroupName}"`);
   console.log("  and purge soft-deleted Key Vault and AI Services to free quota.\n");
 
-  const confirm = await ask(`Type the resource group name to confirm: ${config.resourceGroupName}`);
+  const confirm = await ask(`Type "${config.resourceGroupName}" to confirm`);
   if (confirm !== config.resourceGroupName) {
     console.log("Aborted.");
     return;
