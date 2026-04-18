@@ -4,7 +4,7 @@ import { collectConfig, configPath, loadConfig, saveConfig } from "./config.js";
 import { ask, askYesNo } from "./prompt.js";
 import { writeGeneratedParams } from "./params.js";
 import { findProjectRoot } from "./utils.js";
-import { preflightChecks, runDeployment, runValidation, approvePairing } from "./azure.js";
+import { preflightChecks, runDeployment, runValidation, approvePairing, destroyResources } from "./azure.js";
 
 function helpText(): string {
   return `openclaw-azure-cli
@@ -12,11 +12,13 @@ function helpText(): string {
 Usage:
   openclaw-azure init
   openclaw-azure deploy
+  openclaw-azure destroy
   openclaw-azure help
 
 Commands:
-  init    Prompt for infrastructure values and save local config.
-  deploy  Run Azure preflight checks and deploy infrastructure.
+  init      Prompt for infrastructure values and save local config.
+  deploy    Run Azure preflight checks and deploy infrastructure.
+  destroy   Delete all deployed resources and purge soft-deleted items.
 `;
 }
 
@@ -75,6 +77,24 @@ async function handleDeploy(projectRoot: string): Promise<void> {
   }
 }
 
+async function handleDestroy(projectRoot: string): Promise<void> {
+  const config = await loadConfig(projectRoot);
+  if (!config) {
+    throw new Error("No valid config found. Run `openclaw-azure init` first.");
+  }
+
+  console.log(`\n⚠️  WARNING: This will permanently delete ALL resources in resource group "${config.resourceGroupName}"`);
+  console.log("  and purge soft-deleted Key Vault and AI Services to free quota.\n");
+
+  const confirm = await ask(`Type the resource group name to confirm: ${config.resourceGroupName}`);
+  if (confirm !== config.resourceGroupName) {
+    console.log("Aborted.");
+    return;
+  }
+
+  await destroyResources(config);
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2] ?? "help";
   const projectRoot = await findProjectRoot(process.cwd());
@@ -91,6 +111,11 @@ async function main(): Promise<void> {
 
   if (command === "deploy") {
     await handleDeploy(projectRoot);
+    return;
+  }
+
+  if (command === "destroy") {
+    await handleDestroy(projectRoot);
     return;
   }
 

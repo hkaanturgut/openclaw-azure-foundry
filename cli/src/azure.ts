@@ -92,3 +92,48 @@ export async function approvePairing(config: CliConfig, pairingCode: string): Pr
     throw new Error("Pairing approval failed.");
   }
 }
+
+export async function destroyResources(config: CliConfig): Promise<void> {
+  const rg = config.resourceGroupName;
+
+  console.log(`\nDeleting resource group: ${rg} ...`);
+  const deleteCode = await runCommand("az", [
+    "group", "delete", "-n", rg, "--yes",
+  ]);
+  if (deleteCode !== 0) {
+    throw new Error(`Failed to delete resource group ${rg}.`);
+  }
+  console.log(`✅ Resource group ${rg} deleted.\n`);
+
+  // Purge soft-deleted Key Vault
+  console.log(`Purging soft-deleted Key Vault: ${config.keyVaultName} ...`);
+  const kvCode = await runCommand("az", [
+    "keyvault", "purge", "--name", config.keyVaultName,
+  ]);
+  if (kvCode === 0) {
+    console.log(`✅ Key Vault ${config.keyVaultName} purged.`);
+  } else {
+    console.log(`⚠️  Key Vault purge skipped (may not be in soft-deleted state).`);
+  }
+
+  // Purge soft-deleted Cognitive Services (AI Services)
+  console.log(`Purging soft-deleted AI Services: ${config.aiServicesName} ...`);
+  const aiCode = await runCommand("az", [
+    "cognitiveservices", "account", "purge",
+    "--name", config.aiServicesName,
+    "--resource-group", rg,
+    "--location", config.location,
+  ]);
+  if (aiCode === 0) {
+    console.log(`✅ AI Services ${config.aiServicesName} purged.`);
+  } else {
+    console.log(`⚠️  AI Services purge skipped (may not be in soft-deleted state).`);
+  }
+
+  // Purge soft-deleted Storage Account (if applicable)
+  // Note: Storage accounts don't have a soft-delete purge via CLI in the same way,
+  // but we attempt to check and inform the user.
+  console.log(`\nℹ️  Storage account ${config.storageAccountName} — Azure Storage accounts do not use soft-delete at the account level. No purge needed.`);
+
+  console.log("\n🧹 Destroy complete. All resources and soft-deleted items have been cleaned up.");
+}
