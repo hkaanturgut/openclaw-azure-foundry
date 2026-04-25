@@ -2,6 +2,24 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
+
+/** Resolve the package root directory (where package.json lives). */
+export function getPackageDir(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  // In dev: src/utils.ts → ../ ; In dist: dist/utils.js → ../
+  return path.resolve(path.dirname(thisFile), "..");
+}
+
+/** Resolve the path to the bundled infrastructure template. */
+export function getTemplatePath(): string {
+  return path.join(getPackageDir(), "infrastructure", "main.bicep");
+}
+
+/** State directory in the user's current working directory. */
+export function getStateDir(): string {
+  return path.join(process.cwd(), ".openclaw-azure");
+}
 
 export function expandTilde(inputPath: string): string {
   if (inputPath === "~") {
@@ -13,23 +31,6 @@ export function expandTilde(inputPath: string): string {
   return inputPath;
 }
 
-export async function findProjectRoot(startDir: string): Promise<string> {
-  let current = path.resolve(startDir);
-  while (true) {
-    const candidate = path.join(current, "infrastructure", "main.bicep");
-    try {
-      await fs.access(candidate);
-      return current;
-    } catch {
-      const parent = path.dirname(current);
-      if (parent === current) {
-        throw new Error("Could not find project root containing infrastructure/main.bicep.");
-      }
-      current = parent;
-    }
-  }
-}
-
 export function runCommand(command: string, args: string[]): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: "inherit" });
@@ -38,8 +39,8 @@ export function runCommand(command: string, args: string[]): Promise<number> {
   });
 }
 
-export async function generateSshKeypair(projectRoot: string): Promise<string> {
-  const keyDir = path.join(projectRoot, ".openclaw-azure", "ssh");
+export async function generateSshKeypair(): Promise<string> {
+  const keyDir = path.join(getStateDir(), "ssh");
   await fs.mkdir(keyDir, { recursive: true });
   const keyPath = path.join(keyDir, "id_ed25519");
 

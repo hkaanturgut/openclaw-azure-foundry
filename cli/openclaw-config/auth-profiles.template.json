@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "profiles": {
+    "azure-openai-responses:default": {
+      "type": "api_key",
+      "provider": "azure-openai-responses",
+      "key": "FOUNDRY_API_KEY"
+    }
+  },
+  "lastGood": {
+    "azure-openai-responses": "azure-openai-responses:default"
+  }
+}

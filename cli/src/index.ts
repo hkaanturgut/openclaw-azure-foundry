@@ -3,7 +3,6 @@
 import { collectConfig, configPath, loadConfig, saveConfig } from "./config.js";
 import { ask, askYesNo } from "./prompt.js";
 import { writeGeneratedParams } from "./params.js";
-import { findProjectRoot } from "./utils.js";
 import { preflightChecks, runDeployment, runValidation, waitForReady, approvePairing, destroyResources, ensureAzLogin } from "./azure.js";
 
 function helpText(): string {
@@ -24,16 +23,16 @@ Commands:
 `;
 }
 
-async function handleInit(projectRoot: string): Promise<void> {
-  const config = await collectConfig(projectRoot);
-  await saveConfig(projectRoot, config);
-  const paramsPath = await writeGeneratedParams(projectRoot, config);
-  console.log(`Saved config: ${configPath(projectRoot)}`);
+async function handleInit(): Promise<void> {
+  const config = await collectConfig();
+  await saveConfig(config);
+  const paramsPath = await writeGeneratedParams(config);
+  console.log(`Saved config: ${configPath()}`);
   console.log(`Generated params: ${paramsPath}`);
 }
 
-async function handleDeploy(projectRoot: string): Promise<void> {
-  const config = await loadConfig(projectRoot);
+async function handleDeploy(): Promise<void> {
+  const config = await loadConfig();
   if (!config) {
     throw new Error("No valid config found. Run `openclaw-azure init` first.");
   }
@@ -43,7 +42,7 @@ async function handleDeploy(projectRoot: string): Promise<void> {
     throw new Error("Telegram bot token is required.");
   }
 
-  const paramsPath = await writeGeneratedParams(projectRoot, config);
+  const paramsPath = await writeGeneratedParams(config);
 
   console.log("Checking Azure login...");
   await ensureAzLogin();
@@ -53,7 +52,6 @@ async function handleDeploy(projectRoot: string): Promise<void> {
 
   console.log("Deploying infrastructure...");
   await runDeployment(
-    projectRoot,
     config.location,
     paramsPath,
     config.sshPublicKeyPath,
@@ -84,8 +82,8 @@ async function handleDeploy(projectRoot: string): Promise<void> {
   }
 }
 
-async function handlePair(projectRoot: string): Promise<void> {
-  const config = await loadConfig(projectRoot);
+async function handlePair(): Promise<void> {
+  const config = await loadConfig();
   if (!config) {
     throw new Error("No valid config found. Run `openclaw-azure init` first.");
   }
@@ -126,7 +124,6 @@ async function handleDestroy(): Promise<void> {
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? "help";
-  const projectRoot = await findProjectRoot(process.cwd());
 
   if (command === "help" || command === "--help" || command === "-h") {
     console.log(helpText());
@@ -134,17 +131,17 @@ async function main(): Promise<void> {
   }
 
   if (command === "init") {
-    await handleInit(projectRoot);
+    await handleInit();
     return;
   }
 
   if (command === "deploy") {
-    await handleDeploy(projectRoot);
+    await handleDeploy();
     return;
   }
 
   if (command === "pair") {
-    await handlePair(projectRoot);
+    await handlePair();
     return;
   }
 

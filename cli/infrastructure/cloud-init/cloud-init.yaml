@@ -1,0 +1,155 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - jq
+  - unzip
+
+runcmd:
+  # Install Node.js LTS
+  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  - apt-get install -y nodejs
+
+  # Install Azure CLI
+  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+  # Login with managed identity
+  - az login --identity --allow-no-subscriptions
+
+  # Pull secrets from Key Vault (retry loop for role assignment propagation)
+  - |
+    for i in $(seq 1 30); do
+      FOUNDRY_API_KEY=$(az keyvault secret show --vault-name "${KEY_VAULT_NAME}" --name foundry-api-key --query value -o tsv 2>/dev/null) && break
+      echo "Waiting for Key Vault access (attempt $i/30)..."
+      sleep 10
+    done
+  - TELEGRAM_BOT_TOKEN=$(az keyvault secret show --vault-name "${KEY_VAULT_NAME}" --name telegram-bot-token --query value -o tsv)
+  - FOUNDRY_ENDPOINT="https://${AI_FOUNDRY_ACCOUNT_NAME}.services.ai.azure.com/openai/v1"
+
+  # Install OpenClaw as the admin user (non-interactive)
+  - OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash'
+
+  # Create config directory
+  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent
+  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/workspace
+
+  # Write openclaw.json
+  - |
+    cat > /home/${ADMIN_USERNAME}/.openclaw/openclaw.json << OCEOF
+    {
+      "models": {
+        "mode": "merge",
+        "providers": {
+          "azure-openai-responses": {
+            "baseUrl": "$FOUNDRY_ENDPOINT",
+            "apiKey": "$FOUNDRY_API_KEY",
+            "api": "openai-responses",
+            "authHeader": false,
+            "headers": {
+              "api-key": "$FOUNDRY_API_KEY"
+            },
+            "models": [
+              {
+                "id": "gpt-4o",
+                "name": "GPT-5.4-mini (Azure Foundry)",
+                "reasoning": false,
+                "input": ["text"],
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+                "contextWindow": 128000,
+                "maxTokens": 16384,
+                "compat": { "supportsStore": false }
+              }
+            ]
+          }
+        }
+      },
+      "agents": {
+        "defaults": {
+          "model": { "primary": "azure-openai-responses/gpt-4o" },
+          "models": { "azure-openai-responses/gpt-4o": {} },
+          "workspace": "/home/${ADMIN_USERNAME}/.openclaw/workspace"
+        },
+        "list": [
+          {
+            "id": "main",
+            "name": "main",
+            "workspace": "/home/${ADMIN_USERNAME}/.openclaw/workspace",
+            "agentDir": "/home/${ADMIN_USERNAME}/.openclaw/agents/main/agent",
+            "model": "azure-openai-responses/gpt-4o"
+          }
+        ]
+      },
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "dmPolicy": "pairing",
+          "botToken": "$TELEGRAM_BOT_TOKEN",
+          "groupPolicy": "allowlist",
+          "streaming": "partial"
+        }
+      },
+      "gateway": { "port": 18789, "mode": "local", "bind": "loopback" },
+      "browser": { "enabled": false },
+      "tools": { "profile": "coding", "web": { "search": { "enabled": false } } },
+      "commands": { "native": "auto", "restart": true },
+      "session": { "dmScope": "per-channel-peer" }
+    }
+    OCEOF
+
+  # Write auth-profiles.json
+  - |
+    cat > /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent/auth-profiles.json << APEOF
+    {
+      "version": 1,
+      "profiles": {
+        "azure-openai-responses:default": {
+          "type": "api_key",
+          "provider": "azure-openai-responses",
+          "key": "$FOUNDRY_API_KEY"
+        }
+      },
+      "lastGood": {
+        "azure-openai-responses": "azure-openai-responses:default"
+      }
+    }
+    APEOF
+
+  # Fix ownership
+  - chown -R ${ADMIN_USERNAME}:${ADMIN_USERNAME} /home/${ADMIN_USERNAME}/.openclaw
+
+  # Determine openclaw binary path (installer puts it in .npm-global/bin)
+  - OPENCLAW_BIN=$(sudo -u ${ADMIN_USERNAME} -i bash -c 'command -v openclaw 2>/dev/null || echo /home/${ADMIN_USERNAME}/.npm-global/bin/openclaw')
+
+  # Create systemd service
+  - |
+    OPENCLAW_BIN_PATH=$(sudo -u ${ADMIN_USERNAME} bash -c 'echo $HOME/.npm-global/bin/openclaw')
+    cat > /etc/systemd/system/openclaw.service << SVCEOF
+    [Unit]
+    Description=OpenClaw AI Assistant Gateway
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    Type=simple
+    User=${ADMIN_USERNAME}
+    Group=${ADMIN_USERNAME}
+    WorkingDirectory=/home/${ADMIN_USERNAME}
+    Environment=HOME=/home/${ADMIN_USERNAME}
+    Environment=PATH=/home/${ADMIN_USERNAME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+    Environment=NODE_ENV=production
+    ExecStart=${OPENCLAW_BIN_PATH} gateway --allow-unconfigured
+    Restart=on-failure
+    RestartSec=10
+    StandardOutput=journal
+    StandardError=journal
+
+    [Install]
+    WantedBy=multi-user.target
+    SVCEOF
+
+  # Enable and start OpenClaw
+  - systemctl daemon-reload
+  - systemctl enable openclaw
+  - systemctl start openclaw

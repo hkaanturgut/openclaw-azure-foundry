@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { CliConfig } from "./types.js";
-import { runCommand, runOrThrow, runCapture } from "./utils.js";
+import { runCommand, runOrThrow, runCapture, getTemplatePath } from "./utils.js";
 
 export async function preflightChecks(): Promise<void> {
   await runOrThrow("az", ["--version"], "Azure CLI is not installed or not in PATH.");
@@ -9,7 +9,6 @@ export async function preflightChecks(): Promise<void> {
 }
 
 export async function runDeployment(
-  projectRoot: string,
   location: string,
   paramsPath: string,
   sshPublicKeyPath: string,
@@ -27,9 +26,9 @@ export async function runDeployment(
     "--location",
     location,
     "--template-file",
-    path.join(projectRoot, "infrastructure", "main.bicep"),
+    getTemplatePath(),
     "--parameters",
-    paramsPath,
+    `@${paramsPath}`,
     "--parameters",
     `sshPublicKey=${sshKey}`,
     "--parameters",

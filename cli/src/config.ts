@@ -4,25 +4,21 @@ import os from "node:os";
 import crypto from "node:crypto";
 import type { CliConfig } from "./types.js";
 import { ask, askNumber, askYesNo } from "./prompt.js";
-import { expandTilde, generateSshKeypair } from "./utils.js";
+import { expandTilde, generateSshKeypair, getStateDir } from "./utils.js";
 import { validateConfig } from "./validate.js";
 
-export function stateDir(projectRoot: string): string {
-  return path.join(projectRoot, ".openclaw-azure");
+export function configPath(): string {
+  return path.join(getStateDir(), "config.json");
 }
 
-export function configPath(projectRoot: string): string {
-  return path.join(stateDir(projectRoot), "config.json");
+export async function saveConfig(config: CliConfig): Promise<void> {
+  await fs.mkdir(getStateDir(), { recursive: true });
+  await fs.writeFile(configPath(), JSON.stringify(config, null, 2), "utf8");
 }
 
-export async function saveConfig(projectRoot: string, config: CliConfig): Promise<void> {
-  await fs.mkdir(stateDir(projectRoot), { recursive: true });
-  await fs.writeFile(configPath(projectRoot), JSON.stringify(config, null, 2), "utf8");
-}
-
-export async function loadConfig(projectRoot: string): Promise<CliConfig | null> {
+export async function loadConfig(): Promise<CliConfig | null> {
   try {
-    const raw = await fs.readFile(configPath(projectRoot), "utf8");
+    const raw = await fs.readFile(configPath(), "utf8");
     const config = JSON.parse(raw) as CliConfig;
     validateConfig(config);
     return config;
@@ -31,7 +27,7 @@ export async function loadConfig(projectRoot: string): Promise<CliConfig | null>
   }
 }
 
-export async function collectConfig(projectRoot: string): Promise<CliConfig> {
+export async function collectConfig(): Promise<CliConfig> {
   const defaultSshKey = path.join(os.homedir(), ".ssh", "id_ed25519.pub");
 
   // Generate a short random hex string for globally unique resources
@@ -46,7 +42,7 @@ export async function collectConfig(projectRoot: string): Promise<CliConfig> {
   const generateSsh = await askYesNo("Generate a new SSH keypair for this deployment?", true);
   let sshPublicKeyPath: string;
   if (generateSsh) {
-    sshPublicKeyPath = await generateSshKeypair(projectRoot);
+    sshPublicKeyPath = await generateSshKeypair();
   } else {
     sshPublicKeyPath = expandTilde(await ask("SSH public key path", defaultSshKey));
   }

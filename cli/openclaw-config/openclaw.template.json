@@ -1,0 +1,58 @@
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "azure-openai-responses": {
+        "baseUrl": "https://FOUNDRY_ACCOUNT_NAME.services.ai.azure.com/openai/v1",
+        "apiKey": "FOUNDRY_API_KEY",
+        "api": "openai-responses",
+        "authHeader": false,
+        "headers": {
+          "api-key": "FOUNDRY_API_KEY"
+        },
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o (Azure Foundry)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 128000,
+            "maxTokens": 16384,
+            "compat": { "supportsStore": false }
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": { "primary": "azure-openai-responses/gpt-4o" },
+      "models": { "azure-openai-responses/gpt-4o": {} },
+      "workspace": "/home/ADMIN_USERNAME/.openclaw/workspace"
+    },
+    "list": [
+      {
+        "id": "main",
+        "name": "main",
+        "workspace": "/home/ADMIN_USERNAME/.openclaw/workspace",
+        "agentDir": "/home/ADMIN_USERNAME/.openclaw/agents/main/agent",
+        "model": "azure-openai-responses/gpt-4o"
+      }
+    ]
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "TELEGRAM_BOT_TOKEN",
+      "groupPolicy": "allowlist",
+      "streaming": "partial"
+    }
+  },
+  "gateway": { "port": 18789, "mode": "local", "bind": "loopback" },
+  "browser": { "enabled": false },
+  "tools": { "profile": "coding", "web": { "search": { "enabled": false } } },
+  "commands": { "native": "auto", "restart": true },
+  "session": { "dmScope": "per-channel-peer" }
+}

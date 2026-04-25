@@ -1,38 +1,41 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { CliConfig } from "./types.js";
-import { stateDir } from "./config.js";
+import { getStateDir } from "./utils.js";
 
-export function generatedParamsPath(projectRoot: string): string {
-  return path.join(stateDir(projectRoot), "generated.bicepparam");
+export function generatedParamsPath(): string {
+  return path.join(getStateDir(), "generated.parameters.json");
 }
 
-export function renderBicepParams(config: CliConfig): string {
-  return `using '../infrastructure/main.bicep'
+export function renderParams(config: CliConfig): string {
+  const params: Record<string, { value: string | number }> = {
+    location: { value: config.location },
+    resourceGroupName: { value: config.resourceGroupName },
+    vnetName: { value: config.vnetName },
+    vmName: { value: config.vmName },
+    vmSize: { value: config.vmSize },
+    osDiskSizeGb: { value: config.osDiskSizeGb },
+    adminUsername: { value: config.adminUsername },
+    aiServicesName: { value: config.aiServicesName },
+    hubName: { value: config.hubName },
+    projectName: { value: config.projectName },
+    storageAccountName: { value: config.storageAccountName },
+    modelName: { value: config.modelName },
+    modelVersion: { value: config.modelVersion },
+    modelCapacity: { value: config.modelCapacity },
+    keyVaultName: { value: config.keyVaultName },
+  };
 
-param location = '${config.location}'
-param resourceGroupName = '${config.resourceGroupName}'
-param vnetName = '${config.vnetName}'
-param vmName = '${config.vmName}'
-param vmSize = '${config.vmSize}'
-param osDiskSizeGb = ${config.osDiskSizeGb}
-param adminUsername = '${config.adminUsername}'
-param aiServicesName = '${config.aiServicesName}'
-param hubName = '${config.hubName}'
-param projectName = '${config.projectName}'
-param storageAccountName = '${config.storageAccountName}'
-param modelName = '${config.modelName}'
-param modelVersion = '${config.modelVersion}'
-param modelCapacity = ${config.modelCapacity}
-param keyVaultName = '${config.keyVaultName}'
-param sshPublicKey = 'ssh-rsa PLACEHOLDER'
-param telegramBotToken = 'PLACEHOLDER'
-`;
+  return JSON.stringify({
+    $schema: "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    contentVersion: "1.0.0.0",
+    parameters: params,
+  }, null, 2);
 }
 
-export async function writeGeneratedParams(projectRoot: string, config: CliConfig): Promise<string> {
-  const outputPath = generatedParamsPath(projectRoot);
+export async function writeGeneratedParams(config: CliConfig): Promise<string> {
+  const outputPath = generatedParamsPath();
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, renderBicepParams(config), "utf8");
+  await fs.writeFile(outputPath, renderParams(config), "utf8");
   return outputPath;
 }
