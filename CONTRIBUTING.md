@@ -57,6 +57,7 @@ chore: bump typescript to 5.9
 When your PR changes the CLI package (`cli/`), you **must** include a changeset:
 
 ```bash
+cd cli
 npx changeset
 ```
 
@@ -65,7 +66,7 @@ This prompts you to:
 2. Choose a version bump type (`patch`, `minor`, or `major`)
 3. Write a summary of the change (shown in the changelog)
 
-A `.changeset/*.md` file is generated — commit it with your PR.
+A `cli/.changeset/*.md` file is generated — commit it with your PR.
 
 **When to use which bump:**
 - `patch` — bug fixes, internal refactors, dependency updates
