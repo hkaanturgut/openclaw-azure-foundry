@@ -6,6 +6,7 @@ on:
     paths:
       - "infrastructure/**"
       - "cli/infrastructure/**"
+      - "openclaw-config/**"
       - "scripts/**"
 
 jobs:
@@ -37,10 +38,27 @@ jobs:
             --parameters sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}" \
             --parameters telegramBotToken="${{ secrets.TELEGRAM_BOT_TOKEN }}"
 
+      - name: What-If (dry run)
+        run: |
+          az deployment sub what-if \
+            --location eastus2 \
+            --template-file infrastructure/main.bicep \
+            --parameters infrastructure/parameters/dev.bicepparam \
+            --parameters sshPublicKey="${{ secrets.SSH_PUBLIC_KEY }}" \
+            --parameters telegramBotToken="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+
       - name: Shellcheck
+        if: hashFiles('scripts/*.sh') != ''
         run: |
           sudo apt-get install -y shellcheck
           shellcheck scripts/*.sh
+
+      - name: Validate OpenClaw config templates
+        run: |
+          for f in openclaw-config/*.json; do
+            echo "Validating $f ..."
+            python3 -m json.tool "$f" > /dev/null
+          done
 
   cli:
     runs-on: ubuntu-latest

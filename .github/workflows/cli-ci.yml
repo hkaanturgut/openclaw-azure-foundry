@@ -43,3 +43,7 @@ jobs:
       - name: Verify package contents
         working-directory: cli
         run: npm pack --dry-run
+
+      - name: Changeset status check
+        working-directory: cli
+        run: npx changeset status
