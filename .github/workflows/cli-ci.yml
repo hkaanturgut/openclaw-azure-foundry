@@ -8,7 +8,7 @@ on:
       - ".changeset/**"
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +23,14 @@ jobs:
         working-directory: cli
         run: npm ci
 
+      - name: Typecheck
+        working-directory: cli
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: cli
+        run: npm test
+
       - name: Build
         working-directory: cli
         run: npm run build
@@ -33,5 +41,3 @@ jobs:
       - name: Verify package contents
         working-directory: cli
         run: npm pack --dry-run
-      #   working-directory: cli
-      #   run: npm test
