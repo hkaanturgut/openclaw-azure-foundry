@@ -77,3 +77,19 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: npx changeset publish
+
+      - name: Push release tags
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: git push --tags
+
+      - name: Create GitHub Release
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(jq -r '.version' cli/package.json)
+          TAG="openclaw-azure-cli@${VERSION}"
+          gh release create "$TAG" \
+            --title "openclaw-azure-cli v${VERSION}" \
+            --generate-notes \
+            --latest
