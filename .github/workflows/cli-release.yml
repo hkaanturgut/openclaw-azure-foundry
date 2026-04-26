@@ -36,16 +36,44 @@ jobs:
         working-directory: cli
         run: npm run build
 
-      - name: Create Release PR or Publish
+      # changesets/action has a bug where readChangesetState() ignores the cwd
+      # input, so it always looks for .changeset/ at the repo root instead of
+      # the cwd directory. We work around this by detecting changesets ourselves
+      # and running version/publish manually.
+      - name: Check for changesets
         id: changesets
-        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
+        working-directory: cli
+        run: |
+          HAS_CHANGESETS=false
+          for f in .changeset/*.md; do
+            if [ "$f" != ".changeset/README.md" ] && [ -f "$f" ]; then
+              HAS_CHANGESETS=true
+              break
+            fi
+          done
+          echo "hasChangesets=$HAS_CHANGESETS" >> "$GITHUB_OUTPUT"
+
+      - name: Version packages
+        if: steps.changesets.outputs.hasChangesets == 'true'
+        working-directory: cli
+        run: npx changeset version
+
+      - name: Create Release PR
+        if: steps.changesets.outputs.hasChangesets == 'true'
+        uses: peter-evans/create-pull-request@v7
         with:
-          publish: npx changeset publish
-          version: npx changeset version
-          cwd: cli
           title: "chore(cli): version packages"
-          commit: "chore(cli): version packages"
+          commit-message: "chore(cli): version packages"
+          branch: changeset-release/main
+          body: |
+            This PR was opened by the release workflow because changesets were
+            detected. Merging this PR will publish the new version to npm.
+          labels: release
+
+      - name: Publish to npm
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        working-directory: cli
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+        run: npx changeset publish
