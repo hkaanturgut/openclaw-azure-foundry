@@ -4,6 +4,7 @@
 
 **The open-source CLI to deploy a private AI assistant on Azure**
 
+[![npm version](https://img.shields.io/npm/v/openclaw-azure-cli)](https://www.npmjs.com/package/openclaw-azure-cli)
 [![Deploy Infrastructure](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/infra-deploy.yml/badge.svg)](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/infra-deploy.yml)
 [![Validate](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/validate.yml/badge.svg)](https://github.com/hkaanturgut/openclaw-azure-foundry/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -32,10 +33,8 @@ Deploy a fully private OpenClaw instance in three commands:
 ### Install & Deploy
 
 ```bash
-# 1. Clone and build the CLI
-git clone https://github.com/hkaanturgut/openclaw-azure-foundry.git
-cd openclaw-azure-foundry/cli
-npm install && npm run build && npm link
+# 1. Install the CLI from npm
+npm install -g openclaw-azure-cli
 
 # 2. Initialize — interactive prompts with smart defaults
 openclaw-azure init
@@ -46,6 +45,10 @@ openclaw-azure deploy
 # When you're done — clean teardown with quota recovery
 openclaw-azure destroy
 ```
+
+> **Or run without installing:** `npx openclaw-azure-cli init` and `npx openclaw-azure-cli deploy`
+>
+> **📦 [View on npm](https://www.npmjs.com/package/openclaw-azure-cli)**
 
 That's it. The CLI handles everything:
 

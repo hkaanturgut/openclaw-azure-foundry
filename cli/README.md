@@ -7,10 +7,19 @@ Deploy [OpenClaw](https://openclaw.ai) on Azure AI Foundry with a single CLI —
 ## Quick start
 
 ```bash
-npm install -g openclaw-azure-cli@beta
+npm install -g openclaw-azure-cli
 openclaw-azure init
 openclaw-azure deploy
 ```
+
+Or run without installing:
+
+```bash
+npx openclaw-azure-cli init
+npx openclaw-azure-cli deploy
+```
+
+📦 [View on npm](https://www.npmjs.com/package/openclaw-azure-cli)
 
 ## Prerequisites
 
