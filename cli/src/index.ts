@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { collectConfig, configPath, loadConfig, saveConfig } from "./config.js";
+import { collectConfig, collectConfigUpdate, configPath, loadConfig, saveConfig } from "./config.js";
 import { ask, askYesNo } from "./prompt.js";
 import { writeGeneratedParams } from "./params.js";
-import { preflightChecks, runDeployment, runValidation, waitForReady, approvePairing, destroyResources, ensureAzLogin } from "./azure.js";
+import { preflightChecks, runDeployment, runValidation, waitForReady, approvePairing, destroyResources, ensureAzLogin, fetchExistingToken, updateOpenClawApp } from "./azure.js";
 
 function helpText(): string {
   return `openclaw-azure-cli
@@ -11,6 +11,7 @@ function helpText(): string {
 Usage:
   openclaw-azure init
   openclaw-azure deploy
+  openclaw-azure update [--rotate-token]
   openclaw-azure pair
   openclaw-azure destroy
   openclaw-azure help
@@ -18,8 +19,12 @@ Usage:
 Commands:
   init      Prompt for infrastructure values and save local config.
   deploy    Run Azure preflight checks and deploy infrastructure.
+  update    Update infrastructure, OpenClaw app, or both on a running deployment.
   pair      Approve a Telegram pairing code on a running deployment.
   destroy   Delete all deployed resources and purge soft-deleted items.
+
+Flags:
+  --rotate-token   (update) Prompt for a new Telegram bot token instead of reusing the existing one.
 `;
 }
 
@@ -103,6 +108,73 @@ async function handlePair(): Promise<void> {
   console.log("\n🎉 Pairing approved! Your bot should now respond.");
 }
 
+type UpdateMode = "infra" | "app" | "both";
+
+async function handleUpdate(rotateToken: boolean): Promise<void> {
+  const config = await loadConfig();
+  if (!config) {
+    throw new Error("No valid config found. Run `openclaw-azure init` first.");
+  }
+
+  console.log("\nWhat would you like to update?");
+  console.log("  1) Infrastructure only  (VM size, model, capacity, etc.)");
+  console.log("  2) OpenClaw app only    (reinstall latest version on the VM)");
+  console.log("  3) Both\n");
+  const modeAnswer = await ask("Choose [1/2/3]", "3");
+  const modeMap: Record<string, UpdateMode> = { "1": "infra", "2": "app", "3": "both" };
+  const mode: UpdateMode = modeMap[modeAnswer] ?? "both";
+
+  let updatedConfig = config;
+
+  if (mode === "infra" || mode === "both") {
+    const wantEdit = await askYesNo("Do you want to change infrastructure settings?", true);
+    if (wantEdit) {
+      updatedConfig = await collectConfigUpdate(config);
+      await saveConfig(updatedConfig);
+      console.log(`\nConfig updated: ${configPath()}`);
+    }
+  }
+
+  console.log("Checking Azure login...");
+  await ensureAzLogin();
+
+  if (mode === "infra" || mode === "both") {
+    let token: string;
+    if (rotateToken) {
+      token = await ask("New Telegram bot token (input visible)");
+      if (!token) {
+        throw new Error("Telegram bot token is required when using --rotate-token.");
+      }
+    } else {
+      token = await fetchExistingToken(updatedConfig.resourceGroupName, updatedConfig.vmName, updatedConfig.keyVaultName);
+    }
+
+    const paramsPath = await writeGeneratedParams(updatedConfig);
+
+    console.log("Running preflight checks...");
+    await preflightChecks();
+
+    console.log("Deploying infrastructure updates...");
+    await runDeployment(
+      updatedConfig.location,
+      paramsPath,
+      updatedConfig.sshPublicKeyPath,
+      token,
+    );
+    console.log("\n\u2705 Infrastructure update completed.");
+  }
+
+  if (mode === "app" || mode === "both") {
+    await updateOpenClawApp(updatedConfig);
+    await waitForReady(updatedConfig);
+    console.log("\n\u2705 OpenClaw app updated and running!");
+  }
+
+  if (mode === "infra") {
+    console.log("\n\u2705 Update complete. Run `openclaw-azure update` with app mode to update OpenClaw itself.");
+  }
+}
+
 async function handleDestroy(): Promise<void> {
   const rgName = await ask("Enter the resource group name to destroy");
   if (!rgName) {
@@ -142,6 +214,12 @@ async function main(): Promise<void> {
 
   if (command === "pair") {
     await handlePair();
+    return;
+  }
+
+  if (command === "update") {
+    const rotateToken = process.argv.includes("--rotate-token");
+    await handleUpdate(rotateToken);
     return;
   }
 

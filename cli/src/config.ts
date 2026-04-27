@@ -92,3 +92,27 @@ export async function collectConfig(): Promise<CliConfig> {
   validateConfig(config);
   return config;
 }
+
+export async function collectConfigUpdate(existing: CliConfig): Promise<CliConfig> {
+  console.log("\nPress Enter to keep existing values in brackets.\n");
+
+  const location = await ask("Azure location", existing.location);
+  const vmSize = await ask("VM size", existing.vmSize);
+  const osDiskSizeGb = await askNumber("OS disk size GB", existing.osDiskSizeGb);
+  const modelName = await ask("Model name", existing.modelName);
+  const modelVersion = await ask("Model version", existing.modelVersion);
+  const modelCapacity = await askNumber("Model capacity (TPM in thousands)", existing.modelCapacity);
+
+  const updatedConfig: CliConfig = {
+    ...existing,
+    location,
+    vmSize,
+    osDiskSizeGb,
+    modelName,
+    modelVersion,
+    modelCapacity,
+  };
+
+  validateConfig(updatedConfig);
+  return updatedConfig;
+}

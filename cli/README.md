@@ -27,6 +27,7 @@ openclaw-azure deploy
 |---------|-------------|
 | `openclaw-azure init` | Interactive config collection (suffix, location, VM, model settings) |
 | `openclaw-azure deploy` | Preflight checks, Azure login, infrastructure provisioning, and validation |
+| `openclaw-azure update [--rotate-token]` | Update infrastructure, OpenClaw app, or both on a running deployment |
 | `openclaw-azure pair` | Approve a Telegram pairing code on a running deployment |
 | `openclaw-azure destroy` | Delete all deployed resources and purge soft-deleted items |
 | `openclaw-azure help` | Show usage information |
