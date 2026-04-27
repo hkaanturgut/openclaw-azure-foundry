@@ -158,7 +158,7 @@ For teams that prefer GitOps over the CLI:
 | **[Deploy Infrastructure](.github/workflows/infra-deploy.yml)** | Push to `main` | What-if preview → `prod` approval gate → Bicep deployment → VM health check |
 | **[Update Config](.github/workflows/openclaw-config.yml)** | Push to `main` | Renders config templates, fetches secrets on VM via managed identity, restarts OpenClaw |
 | **[Approve Pairing](.github/workflows/approve-pairing.yml)** | Manual | Approves a Telegram pairing code for a new user |
-| **[Release README Agent](.github/workflows/release-readme-agent.yml)** | Release publish or CLI version/changelog push | Opens or updates a Copilot-assigned issue to refresh both `README.md` and `cli/README.md` after a new CLI release |
+| **[Release README Agent](.github/workflows/release-readme-agent.yml)** | Release publish or CLI version/changelog push | Opens or updates a Copilot-assigned issue to refresh the root `README.md` after a CLI release |
 
 <details>
 <summary><b>GitHub Actions setup guide</b></summary>

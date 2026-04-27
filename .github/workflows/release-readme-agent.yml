@@ -82,16 +82,15 @@ jobs:
               latestChangelogSection(changelog, version) ||
               `See cli/CHANGELOG.md for version ${version}.`;
 
-            const title = `docs: refresh README files for openclaw-azure-cli v${version}`;
+            const title = `docs: refresh root README for openclaw-azure-cli v${version}`;
             const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const releaseUrl = release.html_url || `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/releases`;
 
             const body = `@copilot
 
-            A new CLI release was published and both README surfaces need to be refreshed:
+            A new CLI release was published and the repository root README needs to be refreshed:
 
             1. \`README.md\` in the repository root
-            2. \`cli/README.md\`, which is the npm package README for \`openclaw-azure-cli\`
 
             ## Release context
 
@@ -108,19 +107,18 @@ jobs:
 
             ## Your task
 
-            Update both README files so they accurately reflect the latest release.
+            Update the repository root README so it accurately reflects the latest release.
 
             ### Required files
 
             - \`README.md\`
-            - \`cli/README.md\`
 
             ### Requirements
 
-            - Keep the two README files aligned on the current CLI capabilities and commands.
-            - Treat \`cli/README.md\` as the npm package page source of truth.
+            - Treat \`cli/README.md\` as the npm package README source of truth, but do not modify it in this issue.
+            - Keep \`README.md\` aligned with the current CLI capabilities and commands.
             - Update version-specific or feature-specific language if this release changed it.
-            - Use release notes, \`cli/package.json\`, \`cli/CHANGELOG.md\`, and the current CLI workflows/code as sources.
+            - Use release notes, \`cli/package.json\`, \`cli/CHANGELOG.md\`, \`cli/README.md\`, and the current CLI workflows/code as sources.
             - Keep edits focused on documentation only unless a tiny supporting change is absolutely necessary.
             - Open a pull request with a concise summary of what changed.
 
