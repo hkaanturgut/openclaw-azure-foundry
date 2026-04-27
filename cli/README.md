@@ -2,6 +2,8 @@
 
 Deploy [OpenClaw](https://openclaw.ai) on Azure AI Foundry with a single CLI — no repo clone needed.
 
+> This file is the npm package README source and is kept in sync with the root repo README by `.github/workflows/release-readme-agent.yml`.
+
 [![npm version](https://img.shields.io/npm/v/openclaw-azure-cli)](https://www.npmjs.com/package/openclaw-azure-cli)
 
 ## Quick start

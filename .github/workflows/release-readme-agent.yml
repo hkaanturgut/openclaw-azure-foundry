@@ -1,0 +1,185 @@
+name: Release README Agent
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cli/package.json"
+      - "cli/CHANGELOG.md"
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version to sync, for example 0.1.1"
+        required: false
+      release_name:
+        description: "Optional release name override"
+        required: false
+      release_notes:
+        description: "Optional release notes override"
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  assign-readme-refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create or update Copilot issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            const changelog = fs.existsSync('cli/CHANGELOG.md')
+              ? fs.readFileSync('cli/CHANGELOG.md', 'utf8')
+              : '';
+
+            const release = context.payload.release || {};
+            const versionInput = core.getInput('release_version').trim();
+            const releaseNameInput = core.getInput('release_name').trim();
+            const releaseNotesInput = core.getInput('release_notes').trim();
+
+            const version =
+              versionInput ||
+              (release.tag_name ? release.tag_name.replace(/^v/, '') : '') ||
+              pkg.version;
+
+            const releaseName =
+              releaseNameInput ||
+              release.name ||
+              `openclaw-azure-cli v${version}`;
+
+            function escapeRegex(value) {
+              return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function latestChangelogSection(markdown, currentVersion) {
+              if (!markdown.trim()) return '';
+
+              const versionHeading = new RegExp(
+                `^##\\s+${escapeRegex(currentVersion)}\\s*$([\\s\\S]*?)(?=^##\\s+|\\Z)`,
+                'm'
+              );
+              const exactMatch = markdown.match(versionHeading);
+              if (exactMatch) {
+                return `## ${currentVersion}${exactMatch[1]}`.trim();
+              }
+
+              const genericMatch = markdown.match(/^##\s+[^\n]+[\s\S]*?(?=^##\s+|\Z)/m);
+              return genericMatch ? genericMatch[0].trim() : '';
+            }
+
+            const releaseNotes =
+              releaseNotesInput ||
+              release.body ||
+              latestChangelogSection(changelog, version) ||
+              `See cli/CHANGELOG.md for version ${version}.`;
+
+            const title = `docs: refresh README files for openclaw-azure-cli v${version}`;
+            const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const releaseUrl = release.html_url || `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/releases`;
+
+            const body = `@copilot
+
+            A new CLI release was published and both README surfaces need to be refreshed:
+
+            1. \`README.md\` in the repository root
+            2. \`cli/README.md\`, which is the npm package README for \`openclaw-azure-cli\`
+
+            ## Release context
+
+            - Version: \`${version}\`
+            - Release name: ${releaseName}
+            - Release URL: ${releaseUrl}
+            - Triggered by workflow run: ${workflowUrl}
+
+            ## Release notes
+
+            \`\`\`md
+            ${releaseNotes}
+            \`\`\`
+
+            ## Your task
+
+            Update both README files so they accurately reflect the latest release.
+
+            ### Required files
+
+            - \`README.md\`
+            - \`cli/README.md\`
+
+            ### Requirements
+
+            - Keep the two README files aligned on the current CLI capabilities and commands.
+            - Treat \`cli/README.md\` as the npm package page source of truth.
+            - Update version-specific or feature-specific language if this release changed it.
+            - Use release notes, \`cli/package.json\`, \`cli/CHANGELOG.md\`, and the current CLI workflows/code as sources.
+            - Keep edits focused on documentation only unless a tiny supporting change is absolutely necessary.
+            - Open a pull request with a concise summary of what changed.
+
+            ### Guardrails
+
+            - Do not change unrelated infrastructure or CLI source files.
+            - Do not remove working badges, links, or workflow references unless they are now incorrect.
+            - If the release does not require README changes, open a PR that explains that clearly and updates only the minimal release references needed.
+            `;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`,
+              per_page: 1,
+            });
+
+            if (search.data.items.length > 0) {
+              const existing = search.data.items[0];
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Another release-related sync signal was received for \`${version}\`.\n\nRelease URL: ${releaseUrl}\nWorkflow run: ${workflowUrl}`,
+              });
+
+              try {
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  assignees: ['Copilot'],
+                });
+              } catch (error) {
+                core.warning(`Could not assign Copilot to existing issue: ${error.message}`);
+              }
+
+              core.notice(`Updated existing issue #${existing.number}`);
+              return;
+            }
+
+            try {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                assignees: ['Copilot'],
+              });
+
+              core.notice(`Created Copilot issue #${created.data.number}`);
+            } catch (error) {
+              core.warning(`Issue creation with Copilot assignee failed: ${error.message}`);
+
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: `${body}\n\n> Note: automatic Copilot assignment failed in workflow execution. Assign this issue to **Copilot** in the UI if needed.`,
+              });
+
+              core.notice(`Created fallback issue #${created.data.number}`);
+            }
