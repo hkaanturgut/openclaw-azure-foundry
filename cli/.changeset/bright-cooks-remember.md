@@ -1,0 +1,3 @@
+---
+"openclaw-azure-cli": patch
+---
