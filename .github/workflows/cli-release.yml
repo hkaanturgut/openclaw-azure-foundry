@@ -76,6 +76,15 @@ jobs:
             detected. Merging this PR will publish the new version to npm.
           labels: release
 
+      - name: Guard npm README
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: |
+          version=$(node -p "require('./cli/package.json').version")
+          if [[ "$version" != *-* ]] && grep -q '@beta' cli/README.md; then
+            echo "cli/README.md still references @beta for stable version $version"
+            exit 1
+          fi
+
       - name: Publish to npm
         if: steps.changesets.outputs.hasChangesets == 'false'
         working-directory: cli
