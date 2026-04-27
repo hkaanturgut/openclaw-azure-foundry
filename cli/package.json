@@ -1,6 +1,6 @@
 {
   "name": "openclaw-azure-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI to deploy OpenClaw on Azure AI Foundry — no repo clone needed",
   "license": "MIT",
   "type": "module",

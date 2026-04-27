@@ -1,5 +1,11 @@
 # openclaw-azure-cli
 
+## 0.1.1
+
+### Patch Changes
+
+- 3381b4f:
+
 ## 0.1.0
 
 ### Minor Changes
