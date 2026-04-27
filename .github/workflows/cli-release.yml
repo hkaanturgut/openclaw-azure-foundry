@@ -4,7 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - "cli/**"
+      - "cli/src/**"
+      - "cli/infrastructure/**"
+      - "cli/openclaw-config/**"
+      - "cli/.changeset/**"
+      - "cli/package.json"
+      - "cli/package-lock.json"
+      - "cli/tsconfig.json"
   workflow_dispatch:
 
 concurrency:
