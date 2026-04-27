@@ -18,13 +18,13 @@ A community-driven CLI tool for deploying [OpenClaw](https://openclaw.ai) on Azu
 
 ## 💻 Quick Start (CLI)
 
-Deploy a fully private OpenClaw instance in three commands:
+Deploy a fully private OpenClaw instance in minutes:
 
 ### Prerequisites
 
 | Requirement | How to verify |
 |-------------|---------------|
-| Node.js ≥ 18 | `node --version` |
+| Node.js ≥ 20 | `node --version` |
 | Azure CLI | `az --version` |
 | Azure subscription | `az account show` |
 | Telegram bot token | From [@BotFather](https://t.me/BotFather) |
@@ -32,20 +32,27 @@ Deploy a fully private OpenClaw instance in three commands:
 ### Install & Deploy
 
 ```bash
-# 1. Clone and build the CLI
-git clone https://github.com/hkaanturgut/openclaw-azure-foundry.git
-cd openclaw-azure-foundry/cli
-npm install && npm run build && npm link
+# 1. Install the CLI from npm
+npm install -g openclaw-azure-cli
 
 # 2. Initialize — interactive prompts with smart defaults
 openclaw-azure init
 
-# 3. Deploy — preflight checks, Bicep deploy, validation, and Telegram pairing
+# 3. Deploy — preflight checks, Bicep deploy, and validation
 openclaw-azure deploy
+
+# 4. Pair your Telegram bot (prompted at end of deploy, or run separately)
+openclaw-azure pair
 
 # When you're done — clean teardown with quota recovery
 openclaw-azure destroy
 ```
+
+> **Tip (dev/contributor):** You can also clone the repo and link locally:
+> ```bash
+> git clone https://github.com/hkaanturgut/openclaw-azure-foundry.git
+> cd openclaw-azure-foundry/cli && npm install && npm run build && npm link
+> ```
 
 That's it. The CLI handles everything:
 
@@ -56,14 +63,15 @@ That's it. The CLI handles everything:
 | **Preflight** | Verifies Azure CLI, login, Bicep, and subscription access |
 | **Deploy** | Runs a subscription-scoped Bicep deployment |
 | **Validate** | Checks cloud-init, OpenClaw service, and private endpoint DNS |
-| **Pairing** | Prompts for your Telegram pairing code and approves it on the VM |
+| **Pairing** | Optionally approve a Telegram pairing code during deploy, or run `openclaw-azure pair` later |
 | **Destroy** | Deletes the resource group and purges soft-deleted AI Services to free quota |
 
 ### CLI Commands
 
 ```
 openclaw-azure init      # Interactive config wizard
-openclaw-azure deploy    # Deploy, validate, and pair — all in one
+openclaw-azure deploy    # Deploy, validate, and optionally pair — all in one
+openclaw-azure pair      # Approve a Telegram pairing code on a running deployment
 openclaw-azure destroy   # Tear down everything and free quota
 openclaw-azure help      # Show available commands
 ```
