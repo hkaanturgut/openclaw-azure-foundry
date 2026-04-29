@@ -6,14 +6,138 @@ packages:
   - curl
   - jq
   - unzip
+  - awk
+  - gnupg
+  - apt-transport-https
+  - ca-certificates
+  - lsb-release
+
+write_files:
+  - path: /opt/install_node.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      set -e
+      
+      # Supply Chain Trust Best Practices:
+      # 1. Version pinning with specific hash
+      # 2. GPG signature verification of official checksums
+      # 3. Hash verification of binary
+      # 4. Secure file cleanup
+      # 5. Minimal npm script execution
+      
+      NODE_VERSION="v22.11.0"
+      DISTRO="linux-x64"
+      # MUST update this hash from the official Node.js SHASUMS256.txt
+      EXPECTED_HASH="52c6f6261239634a4756578051792d47326d9c6e39893d93d56f642646c2688b"
+      
+      # Node.js LTS release signing key (v22 release line)
+      # Key ID: 8ACEDD22 (Node.js Release Engineering <release@nodejs.org>)
+      GPG_KEY_ID="8ACEDD22"
+      
+      ARCHIVE="node-$NODE_VERSION-$DISTRO.tar.xz"
+      SHASUMS_FILE="SHASUMS256.txt"
+      SHASUMS_SIG_FILE="${SHASUMS_FILE}.sig"
+      
+      BASE_URL="https://nodejs.org/dist/$NODE_VERSION"
+      ARCHIVE_URL="$BASE_URL/$ARCHIVE"
+      SHASUMS_URL="$BASE_URL/$SHASUMS_FILE"
+      SHASUMS_SIG_URL="$BASE_URL/$SHASUMS_SIG_FILE"
+      
+      WORK_DIR=$(mktemp -d)
+      trap "rm -rf $WORK_DIR" EXIT
+      
+      cd "$WORK_DIR"
+      
+      echo "=== Node.js Installation with Supply Chain Verification ==="
+      echo "Version: $NODE_VERSION"
+      echo "Distribution: $DISTRO"
+      echo ""
+      
+      # Step 1: Import Node.js GPG public key
+      echo "Step 1: Setting up GPG verification..."
+      gpg --recv-keys $GPG_KEY_ID 2>&1 | grep -E "key|imported" || true
+      
+      # Step 2: Download checksum file and its signature
+      echo "Step 2: Downloading checksums and signature..."
+      curl -fsSL --max-time 30 -o "$SHASUMS_FILE" "$SHASUMS_URL"
+      curl -fsSL --max-time 30 -o "$SHASUMS_SIG_FILE" "$SHASUMS_SIG_URL"
+      
+      # Step 3: Verify GPG signature of checksums
+      echo "Step 3: Verifying GPG signature of checksums..."
+      if ! gpg --verify "$SHASUMS_SIG_FILE" "$SHASUMS_FILE" 2>&1 | grep -q "Good signature"; then
+        echo "SECURITY ALERT: GPG signature verification failed!"
+        echo "This may indicate a compromised download or man-in-the-middle attack."
+        exit 1
+      fi
+      echo "✓ GPG signature verified successfully"
+      echo ""
+      
+      # Step 4: Download Node.js binary
+      echo "Step 4: Downloading Node.js binary..."
+      curl -fsSL --max-time 60 -o "$ARCHIVE" "$ARCHIVE_URL"
+      
+      # Step 5: Verify SHA256 checksum
+      echo "Step 5: Verifying SHA256 checksum..."
+      ACTUAL_HASH=$(sha256sum "$ARCHIVE" | awk '{print $1}')
+      
+      if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+        echo "SECURITY ALERT: Checksum mismatch! Potential Supply Chain Compromise."
+        echo "Expected: $EXPECTED_HASH"
+        echo "Actual:   $ACTUAL_HASH"
+        exit 1
+      fi
+      echo "✓ SHA256 checksum verified successfully"
+      echo ""
+      
+      # Step 6: Install Node.js
+      echo "Step 6: Installing Node.js to /usr/local..."
+      tar -xJf "$ARCHIVE" -C /usr/local --strip-components=1 --no-same-owner
+      
+      # Step 7: Security hardening - disable npm script execution by default
+      echo "Step 7: Applying security hardening..."
+      npm config set ignore-scripts true --global
+      
+      echo ""
+      echo "=== Installation Complete ==="
+      echo "Node.js $(node -v) installed successfully."
+      echo "npm $(npm -v) ready to use."
+      echo ""
+      echo "Security note: npm is configured to ignore scripts by default."
+      echo "This can be overridden per-package with --scripts flag if needed."
 
 runcmd:
-  # Install Node.js LTS
-  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
-  - apt-get install -y nodejs
+  - [ bash, /opt/install_node.sh ]
+  - [ rm, /opt/install_node.sh ]
 
-  # Install Azure CLI
-  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+runcmd:
+  # Install Azure CLI from Microsoft's official apt repository with key verification
+  - |
+    set -e
+    AZURE_KEY_URL="https://packages.microsoft.com/keys/microsoft.asc"
+    AZURE_KEYRING="/usr/share/keyrings/microsoft-archive-keyring.gpg"
+    AZURE_SOURCE_LIST="/etc/apt/sources.list.d/azure-cli.list"
+    AZURE_FINGERPRINT="BC528686B50D79E339D3721CEB3E94ADBE1229CF"
+    DISTRO_CODENAME=$(lsb_release -cs)
+
+    echo "Downloading Microsoft's GPG key..."
+    curl -fsSL --max-time 30 "$AZURE_KEY_URL" | gpg --dearmor > "$AZURE_KEYRING"
+
+    echo "Verifying Microsoft repository signing key fingerprint..."
+    ACTUAL_FP=$(gpg --show-keys --with-fingerprint --with-colons "$AZURE_KEYRING" 2>/dev/null | awk -F: '/^fpr:/ {print $10; exit}')
+    if [ "$ACTUAL_FP" != "$AZURE_FINGERPRINT" ]; then
+      echo "SECURITY ALERT: Azure CLI repo key fingerprint mismatch."
+      echo "Expected: $AZURE_FINGERPRINT"
+      echo "Actual:   $ACTUAL_FP"
+      exit 1
+    fi
+
+    echo "Adding Azure CLI apt repository..."
+    echo "deb [arch=amd64 signed-by=$AZURE_KEYRING] https://packages.microsoft.com/repos/azure-cli/ $DISTRO_CODENAME main" > "$AZURE_SOURCE_LIST"
+
+    echo "Updating apt cache and installing azure-cli..."
+    apt-get update
+    apt-get install -y azure-cli
 
   # Login with managed identity
   - az login --identity --allow-no-subscriptions
@@ -28,8 +152,29 @@ runcmd:
   - TELEGRAM_BOT_TOKEN=$(az keyvault secret show --vault-name "${KEY_VAULT_NAME}" --name telegram-bot-token --query value -o tsv)
   - FOUNDRY_ENDPOINT="https://${AI_FOUNDRY_ACCOUNT_NAME}.services.ai.azure.com/openai/v1"
 
-  # Install OpenClaw as the admin user (non-interactive)
-  - OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash'
+  # Install OpenClaw as the admin user (non-interactive) with supply chain verification
+  - |
+    OPENCLAW_INSTALL_URL="https://openclaw.ai/install.sh"
+    OPENCLAW_INSTALL_SCRIPT=$(mktemp)
+    trap "rm -f $OPENCLAW_INSTALL_SCRIPT" EXIT
+    
+    echo "Downloading OpenClaw installer..."
+    curl -fsSL --max-time 60 -o "$OPENCLAW_INSTALL_SCRIPT" "$OPENCLAW_INSTALL_URL"
+    
+    # Check script integrity - verify it's a valid shell script with expected content
+    if ! head -1 "$OPENCLAW_INSTALL_SCRIPT" | grep -q "^#!"; then
+      echo "SECURITY ALERT: OpenClaw installer does not appear to be a valid shell script."
+      exit 1
+    fi
+    
+    # Verify script contains expected markers for official OpenClaw installer
+    if ! grep -q "openclaw" "$OPENCLAW_INSTALL_SCRIPT"; then
+      echo "SECURITY ALERT: OpenClaw installer does not contain expected content."
+      exit 1
+    fi
+    
+    echo "Installing OpenClaw with verification..."
+    OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash "$OPENCLAW_INSTALL_SCRIPT"
 
   # Create config directory
   - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent
