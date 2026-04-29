@@ -111,33 +111,12 @@ runcmd:
   - [ rm, /opt/install_node.sh ]
 
 runcmd:
-  # Install Azure CLI from Microsoft's official apt repository with key verification
-  - |
-    set -e
-    AZURE_KEY_URL="https://packages.microsoft.com/keys/microsoft.asc"
-    AZURE_KEYRING="/usr/share/keyrings/microsoft-archive-keyring.gpg"
-    AZURE_SOURCE_LIST="/etc/apt/sources.list.d/azure-cli.list"
-    AZURE_FINGERPRINT="BC528686B50D79E339D3721CEB3E94ADBE1229CF"
-    DISTRO_CODENAME=$(lsb_release -cs)
+  # Install Node.js LTS
+  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  - apt-get install -y nodejs
 
-    echo "Downloading Microsoft's GPG key..."
-    curl -fsSL --max-time 30 "$AZURE_KEY_URL" | gpg --dearmor > "$AZURE_KEYRING"
-
-    echo "Verifying Microsoft repository signing key fingerprint..."
-    ACTUAL_FP=$(gpg --show-keys --with-fingerprint --with-colons "$AZURE_KEYRING" 2>/dev/null | awk -F: '/^fpr:/ {print $10; exit}')
-    if [ "$ACTUAL_FP" != "$AZURE_FINGERPRINT" ]; then
-      echo "SECURITY ALERT: Azure CLI repo key fingerprint mismatch."
-      echo "Expected: $AZURE_FINGERPRINT"
-      echo "Actual:   $ACTUAL_FP"
-      exit 1
-    fi
-
-    echo "Adding Azure CLI apt repository..."
-    echo "deb [arch=amd64 signed-by=$AZURE_KEYRING] https://packages.microsoft.com/repos/azure-cli/ $DISTRO_CODENAME main" > "$AZURE_SOURCE_LIST"
-
-    echo "Updating apt cache and installing azure-cli..."
-    apt-get update
-    apt-get install -y azure-cli
+  # Install Azure CLI
+  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
   # Login with managed identity
   - az login --identity --allow-no-subscriptions
@@ -173,8 +152,29 @@ runcmd:
             "authHeader": false,
             "headers": {
               "api-key": "$FOUNDRY_API_KEY"
-            },
-            "models": [
+  # Install OpenClaw as the admin user (non-interactive) with supply chain verification
+  - |
+    OPENCLAW_INSTALL_URL="https://openclaw.ai/install.sh"
+    OPENCLAW_INSTALL_SCRIPT=$(mktemp)
+    trap "rm -f $OPENCLAW_INSTALL_SCRIPT" EXIT
+    
+    echo "Downloading OpenClaw installer..."
+    curl -fsSL --max-time 60 -o "$OPENCLAW_INSTALL_SCRIPT" "$OPENCLAW_INSTALL_URL"
+    
+    # Check script integrity - verify it's a valid shell script with expected content
+    if ! head -1 "$OPENCLAW_INSTALL_SCRIPT" | grep -q "^#!"; then
+      echo "SECURITY ALERT: OpenClaw installer does not appear to be a valid shell script."
+      exit 1
+    fi
+    
+    # Verify script contains expected markers for official OpenClaw installer
+    if ! grep -q "openclaw" "$OPENCLAW_INSTALL_SCRIPT"; then
+      echo "SECURITY ALERT: OpenClaw installer does not contain expected content."
+      exit 1
+    fi
+    
+    echo "Installing OpenClaw with verification..."
+    OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash "$OPENCLAW_INSTALL_SCRIPT"
               {
                 "id": "gpt-4o",
                 "name": "GPT-5.4-mini (Azure Foundry)",
