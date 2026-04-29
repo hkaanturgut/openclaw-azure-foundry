@@ -111,12 +111,33 @@ runcmd:
   - [ rm, /opt/install_node.sh ]
 
 runcmd:
-  # Install Node.js LTS
-  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
-  - apt-get install -y nodejs
+  # Install Azure CLI from Microsoft's official apt repository with key verification
+  - |
+    set -e
+    AZURE_KEY_URL="https://packages.microsoft.com/keys/microsoft.asc"
+    AZURE_KEYRING="/usr/share/keyrings/microsoft-archive-keyring.gpg"
+    AZURE_SOURCE_LIST="/etc/apt/sources.list.d/azure-cli.list"
+    AZURE_FINGERPRINT="BC528686B50D79E339D3721CEB3E94ADBE1229CF"
+    DISTRO_CODENAME=$(lsb_release -cs)
 
-  # Install Azure CLI
-  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+    echo "Downloading Microsoft's GPG key..."
+    curl -fsSL --max-time 30 "$AZURE_KEY_URL" | gpg --dearmor > "$AZURE_KEYRING"
+
+    echo "Verifying Microsoft repository signing key fingerprint..."
+    ACTUAL_FP=$(gpg --show-keys --with-fingerprint --with-colons "$AZURE_KEYRING" 2>/dev/null | awk -F: '/^fpr:/ {print $10; exit}')
+    if [ "$ACTUAL_FP" != "$AZURE_FINGERPRINT" ]; then
+      echo "SECURITY ALERT: Azure CLI repo key fingerprint mismatch."
+      echo "Expected: $AZURE_FINGERPRINT"
+      echo "Actual:   $ACTUAL_FP"
+      exit 1
+    fi
+
+    echo "Adding Azure CLI apt repository..."
+    echo "deb [arch=amd64 signed-by=$AZURE_KEYRING] https://packages.microsoft.com/repos/azure-cli/ $DISTRO_CODENAME main" > "$AZURE_SOURCE_LIST"
+
+    echo "Updating apt cache and installing azure-cli..."
+    apt-get update
+    apt-get install -y azure-cli
 
   # Login with managed identity
   - az login --identity --allow-no-subscriptions
@@ -131,27 +152,6 @@ runcmd:
   - TELEGRAM_BOT_TOKEN=$(az keyvault secret show --vault-name "${KEY_VAULT_NAME}" --name telegram-bot-token --query value -o tsv)
   - FOUNDRY_ENDPOINT="https://${AI_FOUNDRY_ACCOUNT_NAME}.services.ai.azure.com/openai/v1"
 
-  # Install OpenClaw as the admin user (non-interactive)
-  - OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash'
-
-  # Create config directory
-  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent
-  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/workspace
-
-  # Write openclaw.json
-  - |
-    cat > /home/${ADMIN_USERNAME}/.openclaw/openclaw.json << OCEOF
-    {
-      "models": {
-        "mode": "merge",
-        "providers": {
-          "azure-openai-responses": {
-            "baseUrl": "$FOUNDRY_ENDPOINT",
-            "apiKey": "$FOUNDRY_API_KEY",
-            "api": "openai-responses",
-            "authHeader": false,
-            "headers": {
-              "api-key": "$FOUNDRY_API_KEY"
   # Install OpenClaw as the admin user (non-interactive) with supply chain verification
   - |
     OPENCLAW_INSTALL_URL="https://openclaw.ai/install.sh"
@@ -175,6 +175,27 @@ runcmd:
     
     echo "Installing OpenClaw with verification..."
     OPENCLAW_NONINTERACTIVE=1 sudo -u ${ADMIN_USERNAME} -i bash "$OPENCLAW_INSTALL_SCRIPT"
+
+  # Create config directory
+  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent
+  - mkdir -p /home/${ADMIN_USERNAME}/.openclaw/workspace
+
+  # Write openclaw.json
+  - |
+    cat > /home/${ADMIN_USERNAME}/.openclaw/openclaw.json << OCEOF
+    {
+      "models": {
+        "mode": "merge",
+        "providers": {
+          "azure-openai-responses": {
+            "baseUrl": "$FOUNDRY_ENDPOINT",
+            "apiKey": "$FOUNDRY_API_KEY",
+            "api": "openai-responses",
+            "authHeader": false,
+            "headers": {
+              "api-key": "$FOUNDRY_API_KEY"
+            },
+            "models": [
               {
                 "id": "gpt-4o",
                 "name": "GPT-5.4-mini (Azure Foundry)",
