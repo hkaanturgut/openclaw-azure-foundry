@@ -1,41 +1,51 @@
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { spawn } from "child_process";
 import { formatPercent, formatNumber, formatDate, formatDateTime, } from "../utils/formatting.js";
+/** Sanitize a string so it is safe to use as part of a filename. */
+function sanitizeFilePart(value) {
+    return value.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 64);
+}
 export class HtmlRenderer {
     outputDir;
     constructor() {
         const home = process.env.HOME || process.env.USERPROFILE || "";
-        this.outputDir = join(home, ".copilot-receipts", "receipts");
+        this.outputDir = resolve(join(home, ".copilot-receipts", "receipts"));
     }
     async renderToFile(data, receiptText) {
         if (!existsSync(this.outputDir)) {
             await mkdir(this.outputDir, { recursive: true });
         }
-        const filename = `copilot-${data.usage.org}-${data.usage.date}.html`;
-        const filePath = join(this.outputDir, filename);
+        const safeOrg = sanitizeFilePart(data.usage.org);
+        const safeDate = sanitizeFilePart(data.usage.date);
+        const filename = `copilot-${safeOrg}-${safeDate}.html`;
+        const filePath = resolve(join(this.outputDir, filename));
+        // Guard: ensure the resolved path stays within outputDir
+        if (!filePath.startsWith(this.outputDir + "/") && filePath !== this.outputDir) {
+            throw new Error("Resolved output path escapes the receipts directory.");
+        }
         const html = this.generateHtml(data, receiptText);
         await writeFile(filePath, html, "utf-8");
         return filePath;
     }
     async openInBrowser(filePath) {
-        const url = `file://${filePath}`;
         const platform = process.platform;
         try {
             let cmd;
             let args;
+            // Pass the local file path directly; each tool accepts absolute paths.
             if (platform === "darwin") {
                 cmd = "open";
-                args = [url];
+                args = [filePath];
             }
             else if (platform === "win32") {
                 cmd = "cmd";
-                args = ["/c", "start", "", url];
+                args = ["/c", "start", "", filePath];
             }
             else {
                 cmd = "xdg-open";
-                args = [url];
+                args = [filePath];
             }
             await new Promise((resolve) => {
                 const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
