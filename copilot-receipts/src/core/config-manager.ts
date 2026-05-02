@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import type { ReceiptConfig } from "../types/config.js";
 import { DEFAULT_CONFIG } from "../types/config.js";
 
@@ -28,7 +28,7 @@ export class ConfigManager {
   }
 
   async saveConfig(config: ReceiptConfig): Promise<void> {
-    const configDir = join(this.configPath, "..");
+    const configDir = dirname(this.configPath);
     if (!existsSync(configDir)) {
       await mkdir(configDir, { recursive: true });
     }

@@ -51,7 +51,11 @@ export class DataFetcher {
             }
             throw new Error(`GitHub API error ${response.status}: ${body.slice(0, 200)}`);
         }
-        return response.json();
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error(`Unexpected response from GitHub Copilot usage API: expected an array but received ${typeof data}`);
+        }
+        return data;
     }
     /**
      * Parse a raw usage day into a structured receipt-ready object.

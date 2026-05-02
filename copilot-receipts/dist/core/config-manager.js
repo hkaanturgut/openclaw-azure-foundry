@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 import { DEFAULT_CONFIG } from "../types/config.js";
 export class ConfigManager {
     configPath;
@@ -23,7 +23,7 @@ export class ConfigManager {
         }
     }
     async saveConfig(config) {
-        const configDir = join(this.configPath, "..");
+        const configDir = dirname(this.configPath);
         if (!existsSync(configDir)) {
             await mkdir(configDir, { recursive: true });
         }

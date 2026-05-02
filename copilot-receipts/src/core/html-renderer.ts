@@ -1,8 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 import type { ReceiptData } from "./receipt-generator.js";
 import {
   formatPercent,
@@ -10,8 +9,6 @@ import {
   formatDate,
   formatDateTime,
 } from "../utils/formatting.js";
-
-const execAsync = promisify(exec);
 
 export class HtmlRenderer {
   private outputDir: string;
@@ -37,13 +34,26 @@ export class HtmlRenderer {
     const url = `file://${filePath}`;
     const platform = process.platform;
     try {
+      let cmd: string;
+      let args: string[];
+
       if (platform === "darwin") {
-        await execAsync(`open "${url}"`);
+        cmd = "open";
+        args = [url];
       } else if (platform === "win32") {
-        await execAsync(`start "" "${url}"`);
+        cmd = "cmd";
+        args = ["/c", "start", "", url];
       } else {
-        await execAsync(`xdg-open "${url}"`);
+        cmd = "xdg-open";
+        args = [url];
       }
+
+      await new Promise<void>((resolve) => {
+        const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+        child.unref();
+        child.on("error", () => resolve()); // ignore errors silently
+        child.on("spawn", () => resolve());
+      });
     } catch {
       // If opening fails, just show the path
     }

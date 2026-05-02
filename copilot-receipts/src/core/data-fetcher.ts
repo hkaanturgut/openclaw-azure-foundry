@@ -85,7 +85,15 @@ export class DataFetcher {
       );
     }
 
-    return response.json() as Promise<CopilotUsageDay[]>;
+    const data: unknown = await response.json();
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        `Unexpected response from GitHub Copilot usage API: expected an array but received ${typeof data}`,
+      );
+    }
+
+    return data as CopilotUsageDay[];
   }
 
   /**
