@@ -2,7 +2,6 @@ import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, resolve, relative, isAbsolute } from "path";
 import { homedir } from "os";
-import { spawn } from "child_process";
 import type { ReceiptData } from "./receipt-generator.js";
 import {
   formatPercent,
@@ -44,33 +43,8 @@ export class HtmlRenderer {
     return filePath;
   }
 
-  async openInBrowser(filePath: string): Promise<void> {
-    const platform = process.platform;
-    try {
-      let cmd: string;
-      let args: string[];
-
-      // Pass the local file path directly; each tool accepts absolute paths.
-      if (platform === "darwin") {
-        cmd = "open";
-        args = [filePath];
-      } else if (platform === "win32") {
-        cmd = "cmd";
-        args = ["/c", "start", "", filePath];
-      } else {
-        cmd = "xdg-open";
-        args = [filePath];
-      }
-
-      await new Promise<void>((resolvePromise) => {
-        const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
-        child.unref();
-        child.on("error", () => resolvePromise()); // ignore errors silently
-        child.on("spawn", () => resolvePromise());
-      });
-    } catch {
-      // If opening fails, just show the path
-    }
+  fileUrl(filePath: string): string {
+    return `file://${filePath}`;
   }
 
   generateHtml(data: ReceiptData, receiptText: string): string {

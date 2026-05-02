@@ -1,12 +1,12 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, dirname } from "path";
+import { homedir } from "os";
 import { DEFAULT_CONFIG } from "../types/config.js";
 export class ConfigManager {
     configPath;
     constructor() {
-        const home = process.env.HOME || process.env.USERPROFILE || "";
-        this.configPath = join(home, ".copilot-receipts.config.json");
+        this.configPath = join(homedir(), ".copilot-receipts.config.json");
     }
     async loadConfig() {
         if (!existsSync(this.configPath)) {

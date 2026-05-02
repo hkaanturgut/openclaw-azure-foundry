@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, dirname } from "path";
+import { homedir } from "os";
 import type { ReceiptConfig } from "../types/config.js";
 import { DEFAULT_CONFIG } from "../types/config.js";
 
@@ -8,8 +9,7 @@ export class ConfigManager {
   private configPath: string;
 
   constructor() {
-    const home = process.env.HOME || process.env.USERPROFILE || "";
-    this.configPath = join(home, ".copilot-receipts.config.json");
+    this.configPath = join(homedir(), ".copilot-receipts.config.json");
   }
 
   async loadConfig(): Promise<ReceiptConfig> {

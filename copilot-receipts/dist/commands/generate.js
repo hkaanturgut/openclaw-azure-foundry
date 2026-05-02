@@ -55,8 +55,9 @@ export class GenerateCommand {
                         break;
                     case "html": {
                         const filePath = await this.htmlRenderer.renderToFile(receiptData, receiptText);
+                        const url = this.htmlRenderer.fileUrl(filePath);
                         console.log(chalk.green(`\n✓ HTML receipt saved: ${filePath}`));
-                        await this.htmlRenderer.openInBrowser(filePath);
+                        console.log(chalk.cyan(`  Open in browser: ${url}`));
                         break;
                     }
                     default:
