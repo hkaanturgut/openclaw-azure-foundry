@@ -37,7 +37,15 @@ export class ConfigManager {
 
   async updateConfig(key: keyof ReceiptConfig, value: string): Promise<void> {
     const config = await this.loadConfig();
-    (config as unknown as Record<string, string>)[key] = value;
+    switch (key) {
+      case "version":
+      case "org":
+      case "token":
+      case "location":
+      case "timezone":
+        config[key] = value;
+        break;
+    }
     await this.saveConfig(config);
   }
 

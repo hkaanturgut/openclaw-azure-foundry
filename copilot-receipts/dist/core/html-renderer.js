@@ -1,6 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { join, resolve } from "path";
+import { join, resolve, relative, isAbsolute } from "path";
+import { homedir } from "os";
 import { spawn } from "child_process";
 import { formatPercent, formatNumber, formatDate, formatDateTime, } from "../utils/formatting.js";
 /** Sanitize a string so it is safe to use as part of a filename. */
@@ -10,8 +11,7 @@ function sanitizeFilePart(value) {
 export class HtmlRenderer {
     outputDir;
     constructor() {
-        const home = process.env.HOME || process.env.USERPROFILE || "";
-        this.outputDir = resolve(join(home, ".copilot-receipts", "receipts"));
+        this.outputDir = resolve(join(homedir(), ".copilot-receipts", "receipts"));
     }
     async renderToFile(data, receiptText) {
         if (!existsSync(this.outputDir)) {
@@ -22,7 +22,8 @@ export class HtmlRenderer {
         const filename = `copilot-${safeOrg}-${safeDate}.html`;
         const filePath = resolve(join(this.outputDir, filename));
         // Guard: ensure the resolved path stays within outputDir
-        if (!filePath.startsWith(this.outputDir + "/") && filePath !== this.outputDir) {
+        const rel = relative(this.outputDir, filePath);
+        if (isAbsolute(rel) || rel.startsWith("..")) {
             throw new Error("Resolved output path escapes the receipts directory.");
         }
         const html = this.generateHtml(data, receiptText);
@@ -47,11 +48,11 @@ export class HtmlRenderer {
                 cmd = "xdg-open";
                 args = [filePath];
             }
-            await new Promise((resolve) => {
+            await new Promise((resolvePromise) => {
                 const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
                 child.unref();
-                child.on("error", () => resolve()); // ignore errors silently
-                child.on("spawn", () => resolve());
+                child.on("error", () => resolvePromise()); // ignore errors silently
+                child.on("spawn", () => resolvePromise());
             });
         }
         catch {

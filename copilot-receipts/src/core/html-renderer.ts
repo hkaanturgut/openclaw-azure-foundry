@@ -1,6 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { join, resolve } from "path";
+import { join, resolve, relative, isAbsolute } from "path";
+import { homedir } from "os";
 import { spawn } from "child_process";
 import type { ReceiptData } from "./receipt-generator.js";
 import {
@@ -19,8 +20,7 @@ export class HtmlRenderer {
   private outputDir: string;
 
   constructor() {
-    const home = process.env.HOME || process.env.USERPROFILE || "";
-    this.outputDir = resolve(join(home, ".copilot-receipts", "receipts"));
+    this.outputDir = resolve(join(homedir(), ".copilot-receipts", "receipts"));
   }
 
   async renderToFile(data: ReceiptData, receiptText: string): Promise<string> {
@@ -34,7 +34,8 @@ export class HtmlRenderer {
     const filePath = resolve(join(this.outputDir, filename));
 
     // Guard: ensure the resolved path stays within outputDir
-    if (!filePath.startsWith(this.outputDir + "/") && filePath !== this.outputDir) {
+    const rel = relative(this.outputDir, filePath);
+    if (isAbsolute(rel) || rel.startsWith("..")) {
       throw new Error("Resolved output path escapes the receipts directory.");
     }
 
@@ -61,11 +62,11 @@ export class HtmlRenderer {
         args = [filePath];
       }
 
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolvePromise) => {
         const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
         child.unref();
-        child.on("error", () => resolve()); // ignore errors silently
-        child.on("spawn", () => resolve());
+        child.on("error", () => resolvePromise()); // ignore errors silently
+        child.on("spawn", () => resolvePromise());
       });
     } catch {
       // If opening fails, just show the path

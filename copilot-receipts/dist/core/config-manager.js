@@ -31,7 +31,15 @@ export class ConfigManager {
     }
     async updateConfig(key, value) {
         const config = await this.loadConfig();
-        config[key] = value;
+        switch (key) {
+            case "version":
+            case "org":
+            case "token":
+            case "location":
+            case "timezone":
+                config[key] = value;
+                break;
+        }
         await this.saveConfig(config);
     }
     async resetConfig() {
