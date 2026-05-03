@@ -5,8 +5,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hkaanturgut/openclaw-azure-foundry.git",
-    "directory": "copilot-receipts"
+    "url": "https://github.com/hkaanturgut/copilot-receipts.git"
+  },
+  "homepage": "https://github.com/hkaanturgut/copilot-receipts#readme",
+  "author": "Hakan Kaan Turgut",
+  "bugs": {
+    "url": "https://github.com/hkaanturgut/copilot-receipts/issues"
   },
   "type": "module",
   "main": "./dist/index.js",

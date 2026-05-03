@@ -1,0 +1,24 @@
+# Compiled output
+dist/
+
+# Node
+node_modules/
+package-lock.json
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Source maps (generated)
+*.js.map
+*.d.ts.map
+
+# Local state
+.copilot-receipts/
