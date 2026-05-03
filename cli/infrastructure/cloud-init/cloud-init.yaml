@@ -109,8 +109,6 @@ write_files:
 runcmd:
   - [ bash, /opt/install_node.sh ]
   - [ rm, /opt/install_node.sh ]
-
-runcmd:
   # Install Azure CLI from Microsoft's official apt repository with key verification
   - |
     set -e
