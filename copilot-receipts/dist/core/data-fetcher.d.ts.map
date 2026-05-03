@@ -1,0 +1,1 @@
+{"version":3,"file":"data-fetcher.d.ts","sourceRoot":"","sources":["../../src/core/data-fetcher.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAIV,kBAAkB,EACnB,MAAM,qBAAqB,CAAC;AAI7B,qBAAa,WAAW;IACtB;;;OAGG;IACG,UAAU,CACd,GAAG,EAAE,MAAM,EACX,KAAK,EAAE,MAAM,EACb,IAAI,CAAC,EAAE,MAAM,GACZ,OAAO,CAAC,kBAAkB,CAAC;IA8B9B;;OAEG;YACW,aAAa;IA+C3B;;OAEG;IACH,OAAO,CAAC,QAAQ;CAsEjB"}

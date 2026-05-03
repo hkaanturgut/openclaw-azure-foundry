@@ -1,0 +1,1 @@
+{"version":3,"file":"setup.d.ts","sourceRoot":"","sources":["../../src/commands/setup.ts"],"names":[],"mappings":"AAMA,MAAM,WAAW,YAAY;IAC3B,SAAS,CAAC,EAAE,OAAO,CAAC;CACrB;AAED,qBAAa,YAAY;IACvB,OAAO,CAAC,aAAa,CAAuB;IAEtC,OAAO,CAAC,OAAO,EAAE,YAAY,GAAG,OAAO,CAAC,IAAI,CAAC;YAmBrC,OAAO;YAmEP,SAAS;CAYxB"}
