@@ -21,6 +21,10 @@ param osDiskSizeGb int = 64
 @description('Admin username for the VM')
 param adminUsername string = 'openclaw'
 
+@description('Availability zone to pin the VM and its OS disk to. Valid values depend on the deployment region.')
+@allowed(['1', '2', '3'])
+param availabilityZone string = '1'
+
 @description('SSH public key for VM access')
 @secure()
 param sshPublicKey string
@@ -109,6 +113,7 @@ module compute 'modules/compute.bicep' = {
     vmSize: vmSize
     osDiskSizeGb: osDiskSizeGb
     adminUsername: adminUsername
+    availabilityZone: availabilityZone
     sshPublicKey: sshPublicKey
     vmSubnetId: networking.outputs.vmSubnetId
     keyVaultName: keyVaultName

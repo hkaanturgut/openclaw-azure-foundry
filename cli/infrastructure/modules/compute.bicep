@@ -4,6 +4,10 @@ param vmSize string = 'Standard_B2as_v2'
 param osDiskSizeGb int = 64
 param adminUsername string = 'openclaw'
 
+@description('Availability zone to pin the VM to. Zone pinning improves SLA and enables zone-redundant managed disk SKUs. Must be a valid zone for the deployment region.')
+@allowed(['1', '2', '3'])
+param availabilityZone string = '1'
+
 @secure()
 param sshPublicKey string
 
@@ -39,12 +43,21 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
 resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: vmName
   location: location
+  zones: [availabilityZone]
   identity: {
     type: 'SystemAssigned'
   }
   properties: {
     hardwareProfile: {
       vmSize: vmSize
+    }
+    securityProfile: {
+      // Encrypts all temporary disks, caches, and data flows between compute and
+      // storage resources at rest using platform-managed keys. Requires the
+      // 'Microsoft.Compute/EncryptionAtHost' feature to be enabled on the
+      // subscription once: az feature register --namespace Microsoft.Compute
+      //   --name EncryptionAtHost
+      encryptionAtHost: true
     }
     osProfile: {
       computerName: vmName
@@ -73,7 +86,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
         createOption: 'FromImage'
         diskSizeGB: osDiskSizeGb
         managedDisk: {
-          storageAccountType: 'StandardSSD_LRS'
+          // ZRS replicates the disk synchronously across availability zones —
+          // if the VM is recreated in a different zone the disk is still available.
+          storageAccountType: 'StandardSSD_ZRS'
         }
       }
     }

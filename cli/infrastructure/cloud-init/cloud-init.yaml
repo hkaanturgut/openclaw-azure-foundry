@@ -6,14 +6,26 @@ packages:
   - curl
   - jq
   - unzip
+  - gnupg
+  - lsb-release
 
 runcmd:
-  # Install Node.js LTS
-  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  # Install Node.js LTS via GPG-verified apt repository (avoids piping untrusted script to bash).
+  # NodeSource's newer repo format intentionally uses "nodistro" as the distribution label
+  # rather than $(lsb_release -cs) — this is correct per NodeSource documentation.
+  # The GPG key is fetched over TLS; every package installed via apt is independently
+  # verified against this key, providing package-level integrity checking.
+  - curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_lts.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+  - apt-get update
   - apt-get install -y nodejs
 
-  # Install Azure CLI
-  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+  # Install Azure CLI via Microsoft's signed apt repository (avoids piping script to bash).
+  # The GPG key is fetched over TLS; apt verifies every package against this key at install time.
+  - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+  - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/azure-cli.list
+  - apt-get update
+  - apt-get install -y azure-cli
 
   # Login with managed identity
   - az login --identity --allow-no-subscriptions
@@ -116,11 +128,14 @@ runcmd:
     }
     APEOF
 
-  # Fix ownership
+  # Fix ownership and restrict permissions so credential files are readable only by the admin user
   - chown -R ${ADMIN_USERNAME}:${ADMIN_USERNAME} /home/${ADMIN_USERNAME}/.openclaw
-
-  # Disable bonjour plugin (mDNS probing crashes on headless cloud VMs)
-  - sudo -u ${ADMIN_USERNAME} -i /home/${ADMIN_USERNAME}/.npm-global/bin/openclaw plugins disable bonjour
+  - chmod 700 /home/${ADMIN_USERNAME}/.openclaw
+  - chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents
+  - chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents/main
+  - chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent
+  - chmod 600 /home/${ADMIN_USERNAME}/.openclaw/openclaw.json
+  - chmod 600 /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent/auth-profiles.json
 
   # Determine openclaw binary path (installer puts it in .npm-global/bin)
   - OPENCLAW_BIN=$(sudo -u ${ADMIN_USERNAME} -i bash -c 'command -v openclaw 2>/dev/null || echo /home/${ADMIN_USERNAME}/.npm-global/bin/openclaw')
