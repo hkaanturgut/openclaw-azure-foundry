@@ -46,6 +46,14 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
     hardwareProfile: {
       vmSize: vmSize
     }
+    securityProfile: {
+      // Encrypts all temporary disks, caches, and data flows between compute and
+      // storage resources at rest using platform-managed keys. Requires the
+      // 'Microsoft.Compute/EncryptionAtHost' feature to be enabled on the
+      // subscription once: az feature register --namespace Microsoft.Compute
+      //   --name EncryptionAtHost
+      encryptionAtHost: true
+    }
     osProfile: {
       computerName: vmName
       adminUsername: adminUsername
