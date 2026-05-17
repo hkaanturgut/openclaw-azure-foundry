@@ -29,14 +29,30 @@ The VNet is divided into two subnets:
 
 ### Network Security Group (NSG)
 
-The `nsg-vm-openclaw` NSG is attached to `snet-vm` with two rules:
+The `nsg-vm-openclaw` NSG is attached to `snet-vm` with the following rules:
+
+**Inbound**
 
 | Priority | Name | Direction | Action |
 |----------|------|-----------|--------|
 | 100 | DenyAllInboundFromInternet | Inbound | **Deny** |
 | 200 | AllowVnetInbound | Inbound | Allow |
 
-The VM has **no public IP address**. The only inbound connectivity comes from within the VNet (used by `az ssh vm` via the Azure SSH relay). All outbound traffic is allowed by default — the VM needs to reach `api.telegram.org` and Azure endpoints.
+**Outbound**
+
+| Priority | Name | Direction | Destination | Port | Action |
+|----------|------|-----------|-------------|------|--------|
+| 1000 | AllowAADOutbound | Outbound | `AzureActiveDirectory` | 443 | Allow |
+| 1010 | AllowKeyVaultOutbound | Outbound | `AzureKeyVault` | 443 | Allow |
+| 1020 | AllowCognitiveServicesOutbound | Outbound | `CognitiveServicesManagement` | 443 | Allow |
+| 1030 | AllowAzureMonitorOutbound | Outbound | `AzureMonitor` | 443 | Allow |
+| 1040 | AllowVnetOutbound | Outbound | `VirtualNetwork` | * | Allow |
+| 1050 | AllowHttpsInternetOutbound | Outbound | `Internet` | 443 | Allow |
+| 1060 | AllowHttpInternetOutbound | Outbound | `Internet` | 80 | Allow |
+| 1070 | AllowDnsOutbound | Outbound | `AzureDNS` | 53/UDP | Allow |
+| 4000 | DenyAllOutbound | Outbound | `*` | * | **Deny** |
+
+The VM has **no public IP address**. The only inbound connectivity comes from within the VNet (used by `az ssh vm` via the Azure SSH relay). Outbound traffic is restricted to the Azure service tags and Internet HTTPS/HTTP needed by cloud-init (apt package downloads, Telegram API) and the runtime OpenClaw process.
 
 ### Private Endpoints
 
@@ -68,12 +84,13 @@ The VM's `customData` field contains a base64-encoded `cloud-init.yaml` file, pr
 
 | Step | Description |
 |------|-------------|
-| Package install | `curl`, `jq`, `unzip`, `nodejs` |
-| Azure CLI install | Via Microsoft's official install script |
+| Package install | `curl`, `jq`, `unzip`, `gnupg`, `lsb-release`, `nodejs` |
+| Azure CLI install | Via Microsoft's signed apt repository (GPG-verified) |
 | Managed identity login | `az login --identity` |
 | Key Vault secret retrieval | Retry loop (30 attempts × 10s) for RBAC propagation |
 | OpenClaw install | Non-interactive install via `OPENCLAW_NONINTERACTIVE=1` |
 | Config file creation | `openclaw.json` and `auth-profiles.json` with runtime secrets |
+| Credential permissions | `chmod 600` on config files; `chmod 700` on `.openclaw` directories |
 | systemd service | Written to `/etc/systemd/system/openclaw.service` |
 | Service start | `systemctl enable --now openclaw` |
 
@@ -122,10 +139,16 @@ The workflows use `azure/login@v2` with `client-id`, `tenant-id`, and `subscript
 | Control | Implementation |
 |---------|---------------|
 | No public IP on VM | NIC configured with private IP only |
-| No inbound internet | NSG rule: Deny Internet → Any |
+| No inbound internet | NSG rule: Deny Internet → Any (inbound) |
+| Restricted outbound traffic | NSG `DenyAllOutbound` catch-all; explicit allows for AAD, Key Vault, Cognitive Services, Azure Monitor, VNet, HTTPS/HTTP, and DNS only |
 | All Azure services via private endpoints | `publicNetworkAccess: 'Disabled'` on Foundry & Key Vault |
 | No secrets in code | All secrets in Key Vault, retrieved via managed identity |
 | No service principal secrets | OIDC federated credentials eliminate stored client secrets |
 | SSH access via Azure AD | `az ssh vm` uses Azure AD token + SSH relay |
 | Least-privilege VM identity | Only `Key Vault Secrets User` role — read-only on secrets |
+| Least-privilege CI/CD identity | `Contributor` + `Role Based Access Control Administrator` (role-assignment operations only) |
 | Soft-delete on Key Vault | 7-day retention prevents accidental secret deletion |
+| Host-level disk encryption | `encryptionAtHost: true` — temp disks, caches, and host↔storage flows encrypted |
+| Credential file permissions | `chmod 600` on `openclaw.json` and `auth-profiles.json`; `chmod 700` on all `.openclaw` directories |
+| VM availability zone | VM pinned to a single AZ; OS disk uses `StandardSSD_ZRS` for zone-redundant durability |
+| Supply chain integrity | Node.js and Azure CLI installed via GPG-verified apt repositories — no `curl \| bash` |

@@ -266,8 +266,15 @@ jobs:
             fi
           }
 
+          # Contributor: required for subscription-scoped deployment that creates the
+          #   resource group and all contained resources (VNet, VM, Key Vault, AI Services).
           ensure_role "Contributor"
-          ensure_role "User Access Administrator"
+          # Role Based Access Control Administrator: required for the Bicep template to
+          #   assign 'Key Vault Secrets User' to the VM's managed identity at deploy time.
+          #   This role is scoped to role-assignment operations only and does NOT grant the
+          #   broader policy/definition management permissions that 'User Access
+          #   Administrator' would allow.
+          ensure_role "Role Based Access Control Administrator"
 
           echo "app_id=$appId" >> "$GITHUB_OUTPUT"
 
@@ -326,7 +333,7 @@ jobs:
           - Tenant: `${{ steps.context.outputs.tenant_id }}`
           - Subscription: `${{ steps.context.outputs.subscription_id }}`
           - Federated credentials: main, pull_request
-          - Role assignments: Contributor + User Access Administrator
+          - Role assignments: Contributor + Role Based Access Control Administrator
           - Repo variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
           - Repo secrets: SSH_PUBLIC_KEY, TELEGRAM_BOT_TOKEN
 
