@@ -6,14 +6,21 @@ packages:
   - curl
   - jq
   - unzip
+  - gnupg
+  - lsb-release
 
 runcmd:
-  # Install Node.js LTS
-  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  # Install Node.js LTS via GPG-verified apt repository (avoids piping untrusted script to bash)
+  - curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_lts.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+  - apt-get update
   - apt-get install -y nodejs
 
-  # Install Azure CLI
-  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+  # Install Azure CLI via Microsoft's signed apt repository (avoids piping script to bash)
+  - curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+  - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/azure-cli.list
+  - apt-get update
+  - apt-get install -y azure-cli
 
   # Login with managed identity
   - az login --identity --allow-no-subscriptions
