@@ -214,3 +214,45 @@ export async function destroyResources(rgName: string): Promise<void> {
 
   console.log("\n🧹 Destroy complete.");
 }
+
+/** Fetch the existing Telegram bot token from Key Vault via the VM (private endpoint). */
+export async function fetchExistingToken(rgName: string, vmName: string, keyVaultName: string): Promise<string> {
+  console.log("Fetching existing Telegram token from Key Vault...");
+  const { code, stdout } = await runCapture("az", [
+    "vm", "run-command", "invoke",
+    "--resource-group", rgName,
+    "--name", vmName,
+    "--command-id", "RunShellScript",
+    "--scripts", `az keyvault secret show --vault-name ${keyVaultName} --name telegram-bot-token --query value -o tsv`,
+    "--query", "value[0].message", "-o", "tsv",
+  ]);
+  if (code !== 0) {
+    throw new Error("Failed to fetch existing Telegram token from Key Vault.");
+  }
+  // run-command output contains stdout after [stdout] marker
+  const match = /\[stdout\]\s*(.*?)(?:\[stderr\]|$)/s.exec(stdout);
+  const token = match ? match[1].trim() : stdout.trim();
+  if (!token) {
+    throw new Error("Could not retrieve existing Telegram token. Use --rotate-token to provide a new one.");
+  }
+  return token;
+}
+
+/** Update OpenClaw application in-place on the VM. */
+export async function updateOpenClawApp(config: CliConfig): Promise<void> {
+  const rg = config.resourceGroupName;
+  const vm = config.vmName;
+
+  console.log("Updating OpenClaw on the VM...");
+  const code = await runCommand("az", [
+    "vm", "run-command", "invoke",
+    "--resource-group", rg,
+    "--name", vm,
+    "--command-id", "RunShellScript",
+    "--scripts", `sudo -u ${config.adminUsername} bash -c 'OPENCLAW_NONINTERACTIVE=1 curl -fsSL https://openclaw.ai/install.sh | bash' && sudo systemctl restart openclaw`,
+  ]);
+  if (code !== 0) {
+    throw new Error("Failed to update OpenClaw on the VM.");
+  }
+  console.log("✅ OpenClaw updated. Waiting for service to become ready...\n");
+}
