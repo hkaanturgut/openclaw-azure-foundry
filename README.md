@@ -126,11 +126,16 @@ Have an idea or want to contribute a hosting target? [Open an issue](https://git
 
 | Layer | Control |
 |-------|---------|
-| Network | VM has no public IP; NSG blocks all inbound internet traffic |
+| Network (inbound) | VM has no public IP; NSG blocks all inbound internet traffic |
+| Network (outbound) | NSG `DenyAllOutbound` catch-all; only AAD, Key Vault, Cognitive Services, Azure Monitor, VNet, HTTPS/HTTP to Internet, and DNS are explicitly allowed |
 | AI Services | Public access disabled; accessible only via private endpoint |
 | Key Vault | Public access disabled; accessible only via private endpoint |
 | Identity | VM uses managed identity; GitHub Actions uses OIDC federation |
 | Access | Telegram bot uses pairing mode — only approved senders can interact |
+| Disk encryption | `encryptionAtHost` enabled — temp disks, caches, and host↔storage flows encrypted at rest |
+| Credential files | `openclaw.json` and `auth-profiles.json` owned by admin user with `chmod 600`; all `.openclaw` directories `chmod 700` |
+| Resilience | VM pinned to an Availability Zone; OS disk uses `StandardSSD_ZRS` (zone-redundant) |
+| CI/CD privilege | Deploy service principal holds `Contributor` + `Role Based Access Control Administrator` (role-assignment only) — no policy/definition management |
 
 ---
 

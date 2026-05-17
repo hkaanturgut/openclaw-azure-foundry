@@ -25,7 +25,7 @@ It will:
 
 Prerequisite for this bootstrap workflow:
 
-1. Create a bootstrap OIDC app/service principal in Entra ID with repo federated credentials and assign subscription roles (`Contributor`, `User Access Administrator`)
+1. Create a bootstrap OIDC app/service principal in Entra ID with repo federated credentials and assign subscription roles (`Contributor`, `Role Based Access Control Administrator`)
 2. Set repository variables `BOOTSTRAP_AZURE_CLIENT_ID`, `BOOTSTRAP_AZURE_TENANT_ID`, and `BOOTSTRAP_AZURE_SUBSCRIPTION_ID`
 
 SSH key automation options:
@@ -89,7 +89,7 @@ az ad app federated-credential create \
 
 ### Assign Azure Roles
 
-The service principal needs **Contributor** (to deploy resources) and **User Access Administrator** (to assign the Key Vault Secrets User role to the VM's managed identity):
+The service principal needs **Contributor** (to deploy resources) and **Role Based Access Control Administrator** (to assign the Key Vault Secrets User role to the VM's managed identity — scoped to role-assignment operations only):
 
 ```bash
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
@@ -101,7 +101,7 @@ az role assignment create \
 
 az role assignment create \
   --assignee "$SP_OBJECT_ID" \
-  --role "User Access Administrator" \
+  --role "Role Based Access Control Administrator" \
   --scope "/subscriptions/$SUBSCRIPTION_ID"
 ```
 
@@ -143,6 +143,19 @@ Go to **Settings → Environments → New environment**, name it `prod`, and opt
 ---
 
 ## 4. Deploy Manually with Bicep
+
+### One-Time Subscription Setup
+
+The VM uses `encryptionAtHost` (host-level disk encryption). This requires a one-time feature registration on your subscription before deploying:
+
+```bash
+az feature register --namespace Microsoft.Compute --name EncryptionAtHost
+az provider register --namespace Microsoft.Compute
+# Wait for the feature to show "Registered" (~2 min)
+az feature show --namespace Microsoft.Compute --name EncryptionAtHost --query properties.state
+```
+
+### Deploy
 
 If you prefer to deploy without GitHub Actions:
 
