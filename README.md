@@ -163,9 +163,12 @@ For teams that prefer GitOps over the CLI:
 |----------|---------|--------------|
 | **[Bootstrap OIDC](.github/workflows/bootstrap-oidc.yml)** | Manual | Creates Entra app registration, service principal, federated credentials, role assignments, and sets repo variables/secrets |
 | **[Validate](.github/workflows/validate.yml)** | Pull request | Runs Bicep compile/lint, ARM template validation, and shell script linting |
+| **[CLI CI](.github/workflows/cli-ci.yml)** | Pull request | Builds, type-checks, and tests the CLI package |
 | **[Deploy Infrastructure](.github/workflows/infra-deploy.yml)** | Push to `main` | What-if preview → `prod` approval gate → Bicep deployment → VM health check |
 | **[Update Config](.github/workflows/openclaw-config.yml)** | Push to `main` | Renders config templates, fetches secrets on VM via managed identity, restarts OpenClaw |
 | **[Approve Pairing](.github/workflows/approve-pairing.yml)** | Manual | Approves a Telegram pairing code for a new user |
+| **[CLI Release](.github/workflows/cli-release.yml)** | Tag push | Publishes the `openclaw-azure-cli` package to npm |
+| **[Update README](.github/workflows/update-readme.yml)** | CLI release | Refreshes the CLI install snippet in this README with the latest published version |
 | **[Release README Agent](.github/workflows/release-readme-agent.yml)** | Release publish or CLI version/changelog push | Opens or updates a Copilot-assigned issue to refresh the root `README.md` after a CLI release |
 
 <details>
