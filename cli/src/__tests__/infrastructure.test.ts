@@ -24,7 +24,7 @@ beforeAll(async () => {
     fs.readFile(path.join(infraDir, "cloud-init", "cloud-init.yaml"), "utf8"),
     fs.readFile(path.join(infraDir, "modules", "networking.bicep"), "utf8"),
     fs.readFile(path.join(infraDir, "modules", "compute.bicep"), "utf8"),
-    fs.readFile(infraDir + "/main.bicep", "utf8"),
+    fs.readFile(path.join(infraDir, "main.bicep"), "utf8"),
   ]);
 });
 
@@ -73,10 +73,10 @@ describe("cloud-init.yaml — credential file permissions", () => {
   });
 
   it("applies chmod 700 to all .openclaw directories", () => {
-    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw\n");
-    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents\n");
-    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents/main\n");
-    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent\n");
+    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw");
+    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents");
+    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents/main");
+    expect(cloudInitYaml).toContain("chmod 700 /home/${ADMIN_USERNAME}/.openclaw/agents/main/agent");
   });
 
   it("sets ownership before restricting permissions", () => {
