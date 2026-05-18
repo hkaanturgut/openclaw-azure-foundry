@@ -1,4 +1,4 @@
-# Changelog
+# openclaw-azure-cli Changelog
 
 ## 0.1.1
 
