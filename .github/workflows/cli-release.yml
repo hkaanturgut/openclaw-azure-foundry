@@ -4,13 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "cli/src/**"
-      - "cli/infrastructure/**"
-      - "cli/openclaw-config/**"
-      - "cli/.changeset/**"
-      - "cli/package.json"
-      - "cli/package-lock.json"
-      - "cli/tsconfig.json"
+      - "cli/**"
+      - ".github/workflows/cli-release.yml"
   workflow_dispatch:
 
 concurrency:
@@ -22,14 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
       id-token: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: cli/package-lock.json
           registry-url: "https://registry.npmjs.org"
@@ -38,46 +36,62 @@ jobs:
         working-directory: cli
         run: npm ci
 
+      - name: Typecheck
+        working-directory: cli
+        run: npm run typecheck
+
       - name: Build
         working-directory: cli
         run: npm run build
 
-      # changesets/action has a bug where readChangesetState() ignores the cwd
-      # input, so it always looks for .changeset/ at the repo root instead of
-      # the cwd directory. We work around this by detecting changesets ourselves
-      # and running version/publish manually.
-      - name: Check for changesets
-        id: changesets
+      - name: Unit tests
         working-directory: cli
-        run: |
-          HAS_CHANGESETS=false
-          for f in .changeset/*.md; do
-            if [ "$f" != ".changeset/README.md" ] && [ -f "$f" ]; then
-              HAS_CHANGESETS=true
-              break
-            fi
-          done
-          echo "hasChangesets=$HAS_CHANGESETS" >> "$GITHUB_OUTPUT"
+        run: npm test
 
-      - name: Version packages
-        if: steps.changesets.outputs.hasChangesets == 'true'
-        working-directory: cli
-        run: npx changeset version
-
-      - name: Create Release PR
-        if: steps.changesets.outputs.hasChangesets == 'true'
-        uses: peter-evans/create-pull-request@v7
+      - name: Bootstrap initial release tag
+        uses: actions/github-script@v7
         with:
-          title: "chore(cli): version packages"
-          commit-message: "chore(cli): version packages"
-          branch: changeset-release/main
-          body: |
-            This PR was opened by the release workflow because changesets were
-            detected. Merging this PR will publish the new version to npm.
-          labels: release
+          script: |
+            const fs = require('fs');
+
+            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            const tag = `v${pkg.version}`;
+
+            const refs = await github.paginate(github.rest.git.listMatchingRefs, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'tags/v',
+              per_page: 100,
+            });
+
+            if (refs.length > 0) {
+              core.notice(`Found ${refs.length} existing release tag(s); skipping bootstrap.`);
+              return;
+            }
+
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${tag}`,
+              sha: context.sha,
+            });
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              name: `openclaw-azure-cli ${tag}`,
+              body: [
+                'Bootstrap release created automatically before semantic-release took over.',
+                '',
+                `This tag anchors future automated releases for \`${pkg.name}\`.`,
+              ].join('\n'),
+            });
+
+            core.notice(`Created bootstrap tag and release ${tag}.`);
 
       - name: Guard npm README
-        if: steps.changesets.outputs.hasChangesets == 'false'
         run: |
           version=$(node -p "require('./cli/package.json').version")
           if [[ "$version" != *-* ]] && grep -q '@beta' cli/README.md; then
@@ -85,10 +99,10 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to npm
-        if: steps.changesets.outputs.hasChangesets == 'false'
+      - name: Release
         working-directory: cli
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-        run: npx changeset publish
+        run: npm run release
