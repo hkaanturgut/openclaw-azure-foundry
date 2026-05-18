@@ -1,6 +1,7 @@
 {
   "name": "openclaw-azure-foundry",
   "private": true,
+  "version": "1.0.0",
   "description": "Release automation for the OpenClaw Azure Foundry repository",
   "engines": {
     "node": ">=22.14.0"
