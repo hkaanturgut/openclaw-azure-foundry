@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "cli/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".releaserc.json"
       - ".github/workflows/cli-release.yml"
   workflow_dispatch:
 
@@ -29,11 +32,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: cli/package-lock.json
+          cache-dependency-path: package-lock.json
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
-        working-directory: cli
         run: npm ci
 
       - name: Typecheck
@@ -100,7 +102,6 @@ jobs:
           fi
 
       - name: Release
-        working-directory: cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

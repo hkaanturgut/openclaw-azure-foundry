@@ -1,0 +1,19 @@
+{
+  "name": "openclaw-azure-foundry",
+  "private": true,
+  "description": "Release automation for the OpenClaw Azure Foundry repository",
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.8",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.1",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "semantic-release": "^25.0.3"
+  }
+}
