@@ -66,6 +66,8 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) so semantic-rel
 If your PR only changes infrastructure or docs (not `cli/`), no release commit is needed.
 
 > The first run on `main` bootstraps a `v<current-version>` tag and GitHub release automatically if the repository has not been tagged yet.
+>
+> The release workflow installs its tooling from the repository root and runs on Node.js 22 in GitHub Actions. The published CLI still supports Node.js 20+.
 
 ## Pull Request Guidelines
 
