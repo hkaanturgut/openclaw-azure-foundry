@@ -167,8 +167,7 @@ For teams that prefer GitOps over the CLI:
 | **[Deploy Infrastructure](.github/workflows/infra-deploy.yml)** | Push to `main` | What-if preview → `prod` approval gate → Bicep deployment → VM health check |
 | **[Update Config](.github/workflows/openclaw-config.yml)** | Push to `main` | Renders config templates, fetches secrets on VM via managed identity, restarts OpenClaw |
 | **[Approve Pairing](.github/workflows/approve-pairing.yml)** | Manual | Approves a Telegram pairing code for a new user |
-| **[CLI Release](.github/workflows/cli-release.yml)** | Tag push | Publishes the `openclaw-azure-cli` package to npm |
-| **[Update README](.github/workflows/update-readme.yml)** | CLI release | Refreshes the CLI install snippet in this README with the latest published version |
+| **[CLI Release](.github/workflows/cli-release.yml)** | Push to `main` with CLI changes | Bootstraps the first tag if needed, then uses semantic-release to publish npm, create the GitHub tag, and publish the GitHub release |
 | **[Release README Agent](.github/workflows/release-readme-agent.yml)** | Release publish or CLI version/changelog push | Opens or updates a Copilot-assigned issue to refresh the root `README.md` after a CLI release |
 
 <details>

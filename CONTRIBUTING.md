@@ -52,35 +52,29 @@ docs: update setup guide for OIDC
 chore: bump typescript to 5.9
 ```
 
-## Changesets (for CLI changes)
+## Automated releases (for CLI changes)
 
-When your PR changes the CLI package (`cli/`), you **must** include a changeset:
+The CLI package (`cli/`) now uses [`semantic-release`](https://github.com/semantic-release/semantic-release) to automate npm publishes, GitHub tags, GitHub releases, and changelog updates from commit history. Do **not** edit `cli/package.json` versions by hand and do **not** add changeset files.
 
-```bash
-cd cli
-npx changeset
-```
+Use [Conventional Commits](https://www.conventionalcommits.org/) so semantic-release can calculate the correct version bump:
 
-This prompts you to:
-1. Select the package (`openclaw-azure-cli`)
-2. Choose a version bump type (`patch`, `minor`, or `major`)
-3. Write a summary of the change (shown in the changelog)
+- `fix:` → patch release
+- `feat:` → minor release
+- `feat!:` or a `BREAKING CHANGE:` footer → major release
+- `docs:`, `test:`, `chore:`, and similar non-user-facing commits → no release unless they include a breaking change
 
-A `cli/.changeset/*.md` file is generated — commit it with your PR.
+If your PR only changes infrastructure or docs (not `cli/`), no release commit is needed.
 
-**When to use which bump:**
-- `patch` — bug fixes, internal refactors, dependency updates
-- `minor` — new features, new CLI commands, new config options
-- `major` — breaking changes (config format changes, removed commands, Node version bumps)
-
-If your PR only changes infrastructure or docs (not `cli/`), no changeset is needed.
+> The first run on `main` bootstraps a `v<current-version>` tag and GitHub release automatically if the repository has not been tagged yet.
+>
+> The release workflow installs its tooling from the repository root and runs on Node.js 22 in GitHub Actions. The published CLI still supports Node.js 20+.
 
 ## Pull Request Guidelines
 
 - Fill out the PR template completely
 - Keep PRs focused — one logical change per PR
 - Ensure CI passes (CLI build + infrastructure validation)
-- Include a changeset if you touched `cli/`
+- Use Conventional Commits so semantic-release can infer the next CLI version
 - Update docs if your change affects user-facing behavior
 
 ## Reporting Issues
